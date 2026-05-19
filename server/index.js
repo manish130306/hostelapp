@@ -447,7 +447,7 @@ app.delete("/api/quarters/:quartersNo", authenticate, async (req, res) => {
     res.json({ deleted: true });
   } else {
     const index = memory.quartersResidents.findIndex(item => item.quartersNo === quartersNo);
-    if (index === -1) return res.status(404).json({ message: "Quarters not found" );
+    if (index === -1) return res.status(404).json({ message: "Quarters not found" });
     const deleted = memory.quartersResidents.splice(index, 1)[0];
     await logAudit(`Quarters resident ${quartersNo} deleted`, req.admin.username, { quartersNo });
     res.json({ deleted: true });
