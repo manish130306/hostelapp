@@ -15,7 +15,12 @@ const ADMIN_PASSWORD_HASH = bcrypt.hashSync(process.env.ADMIN_PASSWORD || "admin
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const distPath = join(__dirname, "..", "dist");
 
-app.use(cors());
+// CORS configuration - restrict to production domains in production
+const corsOptions = process.env.NODE_ENV === "production" 
+  ? { origin: process.env.ALLOWED_ORIGINS?.split(",") || "*", credentials: true }
+  : { origin: "*", credentials: false };
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "8mb" }));
 
 const hostelSeed = [
@@ -198,7 +203,10 @@ function parseQuartersSeedFromSql() {
     quarters_type: "quartersType"
   };
   for (const block of insertBlocks) {
-    const columns = block.slice(block.indexOf("(") + 1, block.indexOf(")")).split(",").map((column) => column.trim());
+    // Extract columns from INSERT INTO quarters_residents (...) VALUES
+    const columnsMatch = block.match(/INSERT INTO quarters_residents\s*\(([^)]+)\)\s*VALUES/is);
+    if (!columnsMatch) continue;
+    const columns = columnsMatch[1].split(",").map((column) => column.trim());
     const valuesPart = block.slice(block.indexOf("VALUES") + 6, -1);
     const tuples = valuesPart.match(/\([\s\S]*?\)(?=,|\s*$)/g) || [];
     for (const tuple of tuples) {
@@ -211,6 +219,7 @@ function parseQuartersSeedFromSql() {
       rows.push(row);
     }
   }
+  console.log(`[Seed] Parsed ${rows.length} quarters residents from schema.sql`);
   return rows;
 }
 
@@ -228,39 +237,81 @@ const memory = {
 let mongoReady = false;
 
 async function connectMongo() {
-  if (!process.env.MONGODB_URI) return;
-  await mongoose.connect(process.env.MONGODB_URI);
-  mongoReady = true;
-  await seedMongo();
+  if (!process.env.MONGODB_URI) {
+    console.log("[DB] MONGODB_URI not configured, running with in-memory data");
+    return;
+  }
+  try {
+    console.log("[DB] Connecting to MongoDB...");
+    await mongoose.connect(process.env.MONGODB_URI);
+    mongoReady = true;
+    console.log("[DB] ✓ MongoDB connected successfully");
+    await seedMongo();
+  } catch (error) {
+    console.error("[DB] ✗ MongoDB connection failed:", error.message);
+    throw error;
+  }
 }
 
 async function seedMongo() {
+  console.log("[Seed] Starting MongoDB seeding process");
+  
   const hostelsCount = await Models.Hostel.countDocuments();
   if (hostelsCount !== hostelSeed.length) {
+    console.log(`[Seed] Hostels count mismatch (expected ${hostelSeed.length}, got ${hostelsCount}), reseeding...`);
     await Models.Hostel.deleteMany({});
     await Models.Hostel.insertMany(hostelSeed);
+    console.log(`[Seed] ✓ Inserted ${hostelSeed.length} hostel records`);
+  } else {
+    console.log(`[Seed] ✓ ${hostelsCount} hostel records already present`);
   }
+  
   const roomsCount = await Models.Room.countDocuments();
-  if (roomsCount !== makeRooms(hostelSeed).length) {
+  const expectedRoomsCount = makeRooms(hostelSeed).length;
+  if (roomsCount !== expectedRoomsCount) {
+    console.log(`[Seed] Rooms count mismatch (expected ${expectedRoomsCount}, got ${roomsCount}), reseeding...`);
     await Models.Room.deleteMany({});
-    await Models.Room.insertMany(makeRooms(hostelSeed));
+    const rooms = makeRooms(hostelSeed);
+    await Models.Room.insertMany(rooms);
+    console.log(`[Seed] ✓ Inserted ${rooms.length} room records`);
+  } else {
+    console.log(`[Seed] ✓ ${roomsCount} room records already present`);
   }
+  
   const studentCount = await Models.Student.countDocuments();
-  if (!studentCount) await Models.Student.insertMany(sampleStudents.map((student) => ({ ...student, verificationId: verifyPayload(student) })));
+  if (!studentCount && sampleStudents.length) {
+    await Models.Student.insertMany(sampleStudents.map((student) => ({ ...student, verificationId: verifyPayload(student) })));
+    console.log(`[Seed] ✓ Inserted ${sampleStudents.length} student records`);
+  } else if (!sampleStudents.length) {
+    console.log(`[Seed] ℹ No student sample data to seed`);
+  } else {
+    console.log(`[Seed] ✓ ${studentCount} student records already present`);
+  }
+  
   const adminCount = await Models.AdminUser.countDocuments();
-  if (!adminCount) await Models.AdminUser.create({ username: ADMIN_USER, passwordHash: ADMIN_PASSWORD_HASH, role: "admin" });
+  if (!adminCount) {
+    await Models.AdminUser.create({ username: ADMIN_USER, passwordHash: ADMIN_PASSWORD_HASH, role: "admin" });
+    console.log(`[Seed] ✓ Created admin user`);
+  } else {
+    console.log(`[Seed] ✓ Admin user already exists`);
+  }
 
   if (quartersSeed.length) {
-    await Models.QuartersResident.bulkWrite(quartersSeed.map((resident) => ({
+    console.log(`[Seed] Upserting ${quartersSeed.length} quarters residents...`);
+    const result = await Models.QuartersResident.bulkWrite(quartersSeed.map((resident) => ({
       updateOne: {
         filter: { quartersNo: resident.quartersNo },
         update: { $set: resident },
         upsert: true
       }
     })));
+    console.log(`[Seed] ✓ Upserted quarters residents (matched: ${result.matchedCount}, modified: ${result.modifiedCount}, upserted: ${result.upsertedCount})`);
+  } else {
+    console.log(`[Seed] ⚠ No quarters residents data found to seed`);
   }
 
   await logAudit("MongoDB seed verified", "System");
+  console.log("[Seed] MongoDB seeding complete");
 }
 
 function authenticate(req, res, next) {
