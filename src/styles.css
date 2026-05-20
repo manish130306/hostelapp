@@ -404,6 +404,152 @@ tbody tr:hover { background: #f8fbfc; }
 .status-pill.vacant { color: #166534; background: #dcfce7; border-color: #bbf7d0; }
 .status-pill.partial { color: #854d0e; background: #fef3c7; border-color: #fde68a; }
 .status-pill.full { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  border: 1px solid transparent;
+  text-transform: capitalize;
+}
+.status-badge.ok { color: #166534; background: #dcfce7; border-color: #bbf7d0; }
+.status-badge.warn { color: #854d0e; background: #fef3c7; border-color: #fde68a; }
+.status-badge.danger { color: #991b1b; background: #fee2e2; border-color: #fecaca; }
+.mini.danger {
+  color: #991b1b;
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+.filters {
+  align-items: center;
+}
+.filters select {
+  width: auto;
+  min-width: 170px;
+}
+.filter-panel {
+  display: grid;
+  gap: 14px;
+}
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.filter-grid select[multiple] {
+  min-height: 104px;
+  padding: 8px;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
+.pagination select {
+  width: auto;
+}
+.letter-preview-shell {
+  display: grid;
+  gap: 14px;
+}
+.letter-preview {
+  width: min(780px, 100%);
+  margin: 0 auto;
+  padding: 34px;
+  background: white;
+  color: #172334;
+  border: 1px solid var(--gov-line);
+  border-radius: 8px;
+  box-shadow: var(--gov-shadow);
+  line-height: 1.6;
+}
+.letter-preview header {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid var(--gov-teal);
+}
+.letter-preview header strong {
+  font-size: 20px;
+  color: var(--gov-navy);
+}
+.letter-preview header span,
+.letter-date {
+  color: var(--gov-muted);
+}
+.letter-preview h2 {
+  margin: 0 0 18px;
+  text-align: center;
+  font-size: 22px;
+}
+.letter-preview h3 {
+  margin: 18px 0 8px;
+  color: var(--gov-navy);
+  font-size: 15px;
+}
+.letter-preview p {
+  margin: 5px 0;
+}
+.signature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 54px;
+}
+.signature-grid span {
+  padding-top: 12px;
+  border-top: 1px solid #8fa5b8;
+  text-align: center;
+  color: #526b80;
+  font-size: 12px;
+  font-weight: 800;
+}
+.export-panel {
+  align-content: start;
+}
+.export-list {
+  display: grid;
+  gap: 10px;
+}
+.export-button {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--gov-line);
+  border-radius: 8px;
+  background: #f7fbfc;
+  color: var(--gov-ink);
+  padding: 10px 12px;
+  text-align: left;
+  transition: transform .18s var(--ease-standard), border-color .18s var(--ease-standard), background-color .18s var(--ease-standard);
+}
+.export-button:hover {
+  transform: translateY(-1px);
+  background: #eef7f9;
+  border-color: #bedbe4;
+}
+.export-button svg {
+  color: var(--gov-teal);
+}
+.export-button span {
+  font-weight: 850;
+}
+.export-button small {
+  color: var(--gov-muted);
+  font-weight: 800;
+}
 .floor-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -549,9 +695,14 @@ tbody tr:hover { background: #f8fbfc; }
 .dark .upload-box,
 .dark .floor-grid div,
 .dark .empty-state,
-.dark .id-photo.placeholder {
+.dark .id-photo.placeholder,
+.dark .export-button {
   background: #082238;
   border-color: #174767;
+}
+.dark .letter-preview {
+  background: #f8fbfc;
+  color: #172334;
 }
 .dark .overview-metrics strong,
 .dark .notice-list div {
@@ -613,7 +764,12 @@ tbody tr:hover { background: #f8fbfc; }
   }
   .overview-metrics,
   .floor-grid,
-  .tool-grid {
+  .tool-grid,
+  .filter-grid,
+  .signature-grid {
     grid-template-columns: 1fr;
   }
+  .letter-preview { padding: 22px; }
+  .export-button { grid-template-columns: 28px minmax(0, 1fr); }
+  .export-button small { grid-column: 2; }
 }

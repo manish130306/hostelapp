@@ -3,7 +3,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -29,9 +29,7 @@ const floorPlans = {
   student: [
     ["First Floor", 1, 17],
     ["Second Floor", 18, 36],
-    ["Third Floor", 37, 55],
-    ["Fourth Floor", 56, 74],
-    ["Fifth Floor", 75, 93]
+    ["Third Floor", 37, 93]
   ],
   resident: [
     ["First Floor", 1, 16],
@@ -61,14 +59,7 @@ function makeRooms(hostels = hostelSeed) {
   }));
 }
 
-const sampleStudents = [
-  { id: "NM001", rollNumber: "NM001", name: "John Mathew", courseYear: "1st Year MBBS", gender: "Male", hostelName: "Boys Hostel", roomNumber: "BH-1", joiningDate: "2026-01-10", contact: "9876543210", parentName: "Mathew J", parentContact: "9876500001", status: "active" },
-  { id: "NM002", rollNumber: "NM002", name: "Priya S", courseYear: "2nd Year MBBS", gender: "Female", hostelName: "Girls Hostel", roomNumber: "GH-1", joiningDate: "2026-01-12", contact: "9876543211", parentName: "Sundar S", parentContact: "9876500002", status: "active" },
-  { id: "NM003", rollNumber: "NM003", name: "Rahul K", courseYear: "Resident", gender: "Male", hostelName: "Resident Quarters Male (RRM)", roomNumber: "RRM-1", joiningDate: "2026-02-05", contact: "9876543212", parentName: "Kannan R", parentContact: "9876500003", status: "active" },
-  { id: "NM004", rollNumber: "NM004", name: "Asha Devi", courseYear: "Final Year MBBS", gender: "Female", hostelName: "Girls Hostel", roomNumber: "GH-1", joiningDate: "2025-08-18", contact: "9876543213", parentName: "Devi M", parentContact: "9876500004", status: "active" },
-  { id: "NM005", rollNumber: "NM005", name: "Vikram R", courseYear: "Resident", gender: "Male", hostelName: "Resident Quarters Male (RRM)", roomNumber: "RRM-1", joiningDate: "2025-11-20", contact: "9876543214", parentName: "Ramesh V", parentContact: "9876500005", status: "active" },
-  { id: "NM006", rollNumber: "NM006", name: "Meena P", courseYear: "3rd Year MBBS", gender: "Female", hostelName: "Girls Hostel", roomNumber: "GH-2", joiningDate: "2025-07-04", contact: "9876543215", parentName: "Pandian P", parentContact: "9876500006", status: "vacated", vacatingDate: "2026-04-20", vacatingReason: "Clinical posting transfer" }
-];
+const sampleStudents = [];
 
 const hostelsSchema = new mongoose.Schema({
   code: { type: String, unique: true },
@@ -138,11 +129,11 @@ const quartersResidentSchema = new mongoose.Schema({
   name: { type: String, required: true },
   designation: String,
   department: String,
-  phoneNo: { type: String, maxlength: 10 },
-  ifhrmsNo: String,
-  refNoAndDate: String,
+  phoneNo: { type: String, maxlength: 10, set: emptyToUndefined },
+  ifhrmsNo: { type: String, set: emptyToUndefined },
+  refNoAndDate: { type: String, set: emptyToUndefined },
   occupyDate: String,
-  ebNo: { type: String, unique: true },
+  ebNo: { type: String, unique: true, sparse: true, set: emptyToUndefined },
   quartersType: { type: String, enum: ['A', 'C', 'D'], required: true }
 }, { timestamps: true });
 
@@ -169,17 +160,63 @@ const Models = {
   QuartersSpecialDetail: mongoose.model("QuartersSpecialDetail", quartersSpecialDetailsSchema)
 };
 
+function emptyToUndefined(value) {
+  return value === "" || value === null ? undefined : value;
+}
+
+function parseSqlValues(tuple) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < tuple.length; index += 1) {
+    const char = tuple[index];
+    const next = tuple[index + 1];
+    if (char === "'" && next === "'") {
+      current += "'";
+      index += 1;
+    } else if (char === "'") {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim());
+  return values.map((value) => {
+    if (value.toUpperCase() === "NULL") return undefined;
+    return value;
+  });
+}
+
+function parseQuartersSeedFromSql() {
+  const sqlPath = join(__dirname, "..", "database", "schema.sql");
+  if (!existsSync(sqlPath)) return [];
+  const sql = readFileSync(sqlPath, "utf8");
+  const rows = [];
+  const insertBlocks = sql.match(/INSERT INTO quarters_residents[\s\S]*?;/g) || [];
+  for (const block of insertBlocks) {
+    const valuesPart = block.slice(block.indexOf("VALUES") + 6, -1);
+    const tuples = valuesPart.match(/\([\s\S]*?\)(?=,|\s*$)/g) || [];
+    for (const tuple of tuples) {
+      const [quartersNo, name, designation, department, phoneNo, ifhrmsNo, refNoAndDate, occupyDate, ebNo, quartersType] = parseSqlValues(tuple.slice(1, -1));
+      rows.push({ quartersNo, name, designation, department, phoneNo, ifhrmsNo, refNoAndDate, occupyDate, ebNo, quartersType });
+    }
+  }
+  return rows;
+}
+
+const quartersSeed = parseQuartersSeedFromSql();
+
 const memory = {
   hostels: hostelSeed,
   rooms: makeRooms(hostelSeed),
   students: sampleStudents,
-  history: [
-    ...sampleStudents.filter((student) => student.status === "active").map((student) => ({ id: `${student.rollNumber}-admission`, type: "admission", rollNumber: student.rollNumber, studentName: student.name, roomNumber: student.roomNumber, hostelName: student.hostelName, date: student.joiningDate })),
-    { id: "NM006-vacation", type: "vacation", rollNumber: "NM006", studentName: "Meena P", roomNumber: "GH-2", hostelName: "Girls Hostel", date: "2026-04-20", reason: "Clinical posting transfer" }
-  ],
-  quartersResidents: [],
-  quartersSpecialDetails: [],
-  auditLogs: [{ id: 1, action: "System seeded with separated hostel and quarters infrastructure", actor: "System", time: new Date().toISOString() }]
+  history: [],
+  quartersResidents: quartersSeed,
+  quartersSpecialDetails: quartersSeed.map((resident) => ({ quartersNo: resident.quartersNo, residentStatus: "Active", familyMembersCount: 0 })),
+  auditLogs: [{ id: 1, action: "System initialized with hostel structure and quarters records", actor: "System", time: new Date().toISOString() }]
 };
 
 let mongoReady = false;
@@ -363,6 +400,47 @@ async function findAvailableRoom({ hostelName, gender, preferredRoom }) {
   return room;
 }
 
+function normalizeQuartersPayload(body = {}) {
+  return {
+    quartersNo: String(body.quartersNo || "").trim().toUpperCase(),
+    name: String(body.name || "").trim(),
+    designation: body.designation ? String(body.designation).trim() : undefined,
+    department: body.department ? String(body.department).trim() : undefined,
+    phoneNo: body.phoneNo ? String(body.phoneNo).trim() : undefined,
+    ifhrmsNo: body.ifhrmsNo ? String(body.ifhrmsNo).trim() : undefined,
+    refNoAndDate: body.refNoAndDate ? String(body.refNoAndDate).trim() : undefined,
+    occupyDate: body.occupyDate || undefined,
+    ebNo: body.ebNo ? String(body.ebNo).trim() : undefined,
+    quartersType: String(body.quartersType || "").trim().toUpperCase()
+  };
+}
+
+function validateQuartersPayload(payload, existing = [], currentQuartersNo = "") {
+  const errors = [];
+  if (!payload.quartersNo) errors.push("Quarters No is required");
+  if (!payload.name) errors.push("Name is required");
+  if (!["A", "C", "D"].includes(payload.quartersType)) errors.push("Quarters Type must be A, C, or D");
+  if (payload.phoneNo && !/^\d{10}$/.test(payload.phoneNo)) errors.push("Phone number must contain exactly 10 digits");
+  if (payload.occupyDate && Number.isNaN(Date.parse(payload.occupyDate))) errors.push("Occupy date is invalid");
+  if (existing.some((item) => item.quartersNo === payload.quartersNo && item.quartersNo !== currentQuartersNo)) errors.push("Quarters No must be unique");
+  if (payload.ebNo && existing.some((item) => item.ebNo === payload.ebNo && item.quartersNo !== currentQuartersNo)) errors.push("EB No must be unique");
+  return errors;
+}
+
+function normalizeSpecialDetailsPayload(body = {}) {
+  return {
+    quartersNo: String(body.quartersNo || "").trim().toUpperCase(),
+    specialNotes: body.specialNotes ? String(body.specialNotes).trim() : "",
+    maintenanceIssues: body.maintenanceIssues ? String(body.maintenanceIssues).trim() : "",
+    familyMembersCount: Number.parseInt(body.familyMembersCount, 10) || 0,
+    vehicleNumber: body.vehicleNumber ? String(body.vehicleNumber).trim() : "",
+    aadhaarNumber: body.aadhaarNumber ? String(body.aadhaarNumber).trim() : "",
+    emergencyContactName: body.emergencyContactName ? String(body.emergencyContactName).trim() : "",
+    emergencyContactPhone: body.emergencyContactPhone ? String(body.emergencyContactPhone).trim() : "",
+    residentStatus: body.residentStatus || "Active"
+  };
+}
+
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body;
   let valid = username === ADMIN_USER && await bcrypt.compare(password || "", ADMIN_PASSWORD_HASH);
@@ -414,25 +492,38 @@ app.get("/api/quarters", authenticate, async (_req, res) => {
 });
 
 app.post("/api/quarters", authenticate, async (req, res) => {
-  const payload = { ...req.body };
+  const payload = normalizeQuartersPayload(req.body);
+  const state = await loadState();
+  const errors = validateQuartersPayload(payload, state.quartersResidents);
+  if (errors.length) return res.status(400).json({ message: errors[0], errors });
   if (mongoReady) await Models.QuartersResident.create(payload);
-  else memory.quartersResidents.push(payload);
+  else {
+    memory.quartersResidents.push(payload);
+    memory.quartersSpecialDetails.push({ quartersNo: payload.quartersNo, residentStatus: "Active", familyMembersCount: 0 });
+  }
   await logAudit(`Quarters resident ${payload.quartersNo} added`, req.admin.username, payload);
   res.status(201).json(payload);
 });
 
 app.put("/api/quarters/:quartersNo", authenticate, async (req, res) => {
-  const { quartersNo } = req.params;
-  const payload = { ...req.body };
+  const quartersNo = req.params.quartersNo.toUpperCase();
+  const payload = normalizeQuartersPayload(req.body);
+  const state = await loadState();
+  const errors = validateQuartersPayload(payload, state.quartersResidents, quartersNo);
+  if (errors.length) return res.status(400).json({ message: errors[0], errors });
   if (mongoReady) {
     const updated = await Models.QuartersResident.findOneAndUpdate({ quartersNo }, payload, { new: true }).lean();
     if (!updated) return res.status(404).json({ message: "Quarters not found" });
+    if (payload.quartersNo !== quartersNo) await Models.QuartersSpecialDetail.updateOne({ quartersNo }, { quartersNo: payload.quartersNo });
     await logAudit(`Quarters resident ${quartersNo} updated`, req.admin.username, payload);
     res.json(updated);
   } else {
     const index = memory.quartersResidents.findIndex(item => item.quartersNo === quartersNo);
     if (index === -1) return res.status(404).json({ message: "Quarters not found" });
     memory.quartersResidents[index] = { ...memory.quartersResidents[index], ...payload };
+    if (payload.quartersNo !== quartersNo) {
+      memory.quartersSpecialDetails = memory.quartersSpecialDetails.map((item) => item.quartersNo === quartersNo ? { ...item, quartersNo: payload.quartersNo } : item);
+    }
     await logAudit(`Quarters resident ${quartersNo} updated`, req.admin.username, payload);
     res.json(memory.quartersResidents[index]);
   }
@@ -460,27 +551,35 @@ app.get("/api/quarters/special-details", authenticate, async (_req, res) => {
 });
 
 app.post("/api/quarters/special-details", authenticate, async (req, res) => {
-  const payload = { ...req.body };
-  if (mongoReady) await Models.QuartersSpecialDetail.create(payload);
-  else memory.quartersSpecialDetails.push(payload);
+  const payload = normalizeSpecialDetailsPayload(req.body);
+  const state = await loadState();
+  if (!state.quartersResidents.some((item) => item.quartersNo === payload.quartersNo)) return res.status(404).json({ message: "Quarters resident not found" });
+  if (!["Active", "Vacated", "Transferred", "On Leave"].includes(payload.residentStatus)) return res.status(400).json({ message: "Invalid resident status" });
+  if (mongoReady) {
+    await Models.QuartersSpecialDetail.findOneAndUpdate({ quartersNo: payload.quartersNo }, payload, { new: true, upsert: true });
+  } else {
+    const index = memory.quartersSpecialDetails.findIndex((item) => item.quartersNo === payload.quartersNo);
+    if (index === -1) memory.quartersSpecialDetails.push(payload);
+    else memory.quartersSpecialDetails[index] = { ...memory.quartersSpecialDetails[index], ...payload };
+  }
   await logAudit(`Quarters special details for ${payload.quartersNo} added`, req.admin.username, payload);
   res.status(201).json(payload);
 });
 
 app.put("/api/quarters/special-details/:quartersNo", authenticate, async (req, res) => {
-  const { quartersNo } = req.params;
-  const payload = { ...req.body };
+  const quartersNo = req.params.quartersNo.toUpperCase();
+  const payload = normalizeSpecialDetailsPayload({ ...req.body, quartersNo });
+  if (!["Active", "Vacated", "Transferred", "On Leave"].includes(payload.residentStatus)) return res.status(400).json({ message: "Invalid resident status" });
   if (mongoReady) {
-    const updated = await Models.QuartersSpecialDetail.findOneAndUpdate({ quartersNo }, payload, { new: true }).lean();
-    if (!updated) return res.status(404).json({ message: "Quarters special details not found" );
+    const updated = await Models.QuartersSpecialDetail.findOneAndUpdate({ quartersNo }, payload, { new: true, upsert: true }).lean();
     await logAudit(`Quarters special details for ${quartersNo} updated`, req.admin.username, payload);
     res.json(updated);
   } else {
     const index = memory.quartersSpecialDetails.findIndex(item => item.quartersNo === quartersNo);
-    if (index === -1) return res.status(404).json({ message: "Quarters special details not found" );
-    memory.quartersSpecialDetails[index] = { ...memory.quartersSpecialDetails[index], ...payload };
+    if (index === -1) memory.quartersSpecialDetails.push(payload);
+    else memory.quartersSpecialDetails[index] = { ...memory.quartersSpecialDetails[index], ...payload };
     await logAudit(`Quarters special details for ${quartersNo} updated`, req.admin.username, payload);
-    res.json(memory.quartersSpecialDetails[index]);
+    res.json(index === -1 ? payload : memory.quartersSpecialDetails[index]);
   }
 });
 
@@ -488,30 +587,31 @@ app.delete("/api/quarters/special-details/:quartersNo", authenticate, async (req
   const { quartersNo } = req.params;
   if (mongoReady) {
     const deleted = await Models.QuartersSpecialDetail.findOneAndDelete({ quartersNo });
-    if (!deleted) return res.status(404).json({ message: "Quarters special details not found" );
+    if (!deleted) {
+      return res.status(404).json({
+        message: "Quarters special details not found"
+      });
+    }
     await logAudit(`Quarters special details for ${quartersNo} deleted`, req.admin.username, { quartersNo });
     res.json({ deleted: true });
   } else {
     const index = memory.quartersSpecialDetails.findIndex(item => item.quartersNo === quartersNo);
-    if (index === -1) return res.status(404).json({ message: "Quarters special details not found" );
+    if (index === -1) {
+      return res.status(404).json({
+        message: "Quarters special details not found"
+      });
+    }
     const deleted = memory.quartersSpecialDetails.splice(index, 1)[0];
     await logAudit(`Quarters special details for ${quartersNo} deleted`, req.admin.username, { quartersNo });
     res.json({ deleted: true });
   }
 });
 
-app.get("/api/students", authenticate, async (_req, res) => {
-  const state = await loadState();
-  res.json(state.students);
-});
-
-app.get("/api/quarters", authenticate, async (_req, res) => {
-  const state = await loadState();
-  res.json(state.quartersResidents);
-});
-
 app.post("/api/students", authenticate, async (req, res) => {
   const body = req.body;
+  if (!body.rollNumber || !body.name || !body.gender || !body.joiningDate) return res.status(400).json({ message: "Roll number, name, gender, and joining date are required" });
+  const state = await loadState();
+  if (state.students.some((item) => item.rollNumber === body.rollNumber)) return res.status(409).json({ message: "Roll number already exists" });
   const room = await findAvailableRoom({ hostelName: body.hostelName, gender: body.gender, preferredRoom: body.roomNumber });
   const student = {
     rollNumber: body.rollNumber,
@@ -532,12 +632,62 @@ app.post("/api/students", authenticate, async (req, res) => {
     await Models.Student.create(student);
     await Models.History.create(history);
   } else {
-    if (memory.students.some((item) => item.rollNumber === student.rollNumber)) return res.status(409).json({ message: "Roll number already exists" });
     memory.students.unshift({ id: student.rollNumber, ...student });
     memory.history.unshift({ id: `${student.rollNumber}-admission`, ...history });
   }
   await logAudit(`New admission recorded for ${student.rollNumber}`, req.admin.username, student);
   res.status(201).json(student);
+});
+
+app.put("/api/students/:rollNumber", authenticate, async (req, res) => {
+  const { rollNumber } = req.params;
+  const body = req.body;
+  if (!body.name || !body.gender || !body.joiningDate) return res.status(400).json({ message: "Name, gender, and joining date are required" });
+  const payload = {
+    name: body.name,
+    courseYear: body.courseYear,
+    gender: body.gender,
+    hostelName: body.hostelName,
+    roomNumber: body.roomNumber,
+    joiningDate: body.joiningDate,
+    contact: body.contact,
+    parentName: body.parentName,
+    parentContact: body.parentContact
+  };
+  if (body.roomNumber) await findAvailableRoom({ hostelName: body.hostelName, gender: body.gender, preferredRoom: body.roomNumber });
+  let student;
+  if (mongoReady) {
+    student = await Models.Student.findOneAndUpdate({ rollNumber }, payload, { new: true }).lean();
+  } else {
+    memory.students = memory.students.map((item) => {
+      if (item.rollNumber !== rollNumber) return item;
+      student = { ...item, ...payload, verificationId: verifyPayload({ ...item, ...payload }) };
+      return student;
+    });
+  }
+  if (!student) return res.status(404).json({ message: "Student not found" });
+  await logAudit(`Student ${rollNumber} updated`, req.admin.username, payload);
+  res.json(student);
+});
+
+app.post("/api/students/:rollNumber/transfer", authenticate, async (req, res) => {
+  const { rollNumber } = req.params;
+  const state = await loadState();
+  const current = state.students.find((item) => item.rollNumber === rollNumber && item.status === "active");
+  if (!current) return res.status(404).json({ message: "Active student not found" });
+  const room = await findAvailableRoom({ hostelName: req.body.hostelName || current.hostelName, gender: current.gender, preferredRoom: req.body.roomNumber });
+  let student;
+  if (mongoReady) {
+    student = await Models.Student.findOneAndUpdate({ rollNumber }, { hostelName: room.hostelName, roomNumber: room.roomNumber }, { new: true }).lean();
+  } else {
+    memory.students = memory.students.map((item) => {
+      if (item.rollNumber !== rollNumber) return item;
+      student = { ...item, hostelName: room.hostelName, roomNumber: room.roomNumber, verificationId: verifyPayload({ ...item, roomNumber: room.roomNumber }) };
+      return student;
+    });
+  }
+  await logAudit(`Student ${rollNumber} transferred to ${room.roomNumber}`, req.admin.username, { roomNumber: room.roomNumber });
+  res.json(student);
 });
 
 app.post("/api/students/:rollNumber/vacate", authenticate, async (req, res) => {
@@ -555,67 +705,17 @@ app.post("/api/students/:rollNumber/vacate", authenticate, async (req, res) => {
     });
     if (student) memory.history.unshift({ id: `${rollNumber}-vacation`, type: "vacation", rollNumber, studentName: student.name, roomNumber: student.roomNumber, hostelName: student.hostelName, date: vacatingDate, reason: vacatingReason });
   }
-  if (!student) return res.status(404).json({ message: "Student not found" );
+  if (!student) {
+    return res.status(404).json({
+      message: "Student not found"
+    });
+  }
   await logAudit(`Student ${rollNumber} vacated room ${student.roomNumber}`, req.admin.username, { vacatingDate, vacatingReason });
   res.json(student);
 });
 
-app.get("/api/reports/:type", authenticate, async (req, res) => {
-  const state = await loadState();
-  const rooms = enrichRooms(state.rooms, state.students);
-  const reports = {
-    occupiedRooms: rooms.filter((room) => room.occupied > 0),
-    vacantRooms: rooms.filter((room) => room.vacancy > 0),
-    studentList: state.students,
-    hostelWise: state.hostels.map((hostel) => {
-      const hostelRooms = rooms.filter((room) => room.hostelName === hostel.name);
-      const capacity = hostelRooms.reduce((sum, room) => sum + room.capacity, 0);
-      const occupied = hostelRooms.reduce((sum, room) => sum + room.occupied, 0);
-      return { hostelName: hostel.name, category: hostel.category, rooms: hostelRooms.length, capacity, occupied, vacantBeds: capacity - occupied };
-    }),
-    monthlyAdmissions: state.history.filter((item) => item.type === "admission"),
-    monthlyVacates: state.history.filter((item) => item.type === "vacation")
-  };
-  res.json(reports[req.params.type] || []);
-});
-
-app.get("/api/audit-logs", authenticate, async (_req, res) => {
-  const state = await loadState();
-  res.json(state.auditLogs);
-});
-
-app.get("/api/backup", authenticate, async (req, res) => {
-  const state = await loadState();
-  await logAudit("Database backup exported", req.admin.username);
-  res.json({ exportedAt: new Date().toISOString(), mongoReady, ...state });
-});
-
-app.post("/api/restore", authenticate, async (req, res) => {
-  if (!req.body?.hostels || !req.body?.rooms || !req.body?.students) return res.status(400).json({ message: "Invalid backup payload" );
-  if (mongoReady) {
-    await Promise.all([Models.Hostel.deleteMany({}), Models.Room.deleteMany({}), Models.Student.deleteMany({}), Models.History.deleteMany({}), Models.QuartersResident.deleteMany({}), Models.QuartersSpecialDetail.deleteMany({})]);
-    await Promise.all([
-      Models.Hostel.insertMany(req.body.hostels),
-      Models.Room.insertMany(req.body.rooms),
-      Models.Student.insertMany(req.body.students),
-      Models.History.insertMany(req.body.history || []),
-      Models.QuartersResident.insertMany(req.body.quartersResidents || []),
-      Models.QuartersSpecialDetail.insertMany(req.body.quartersSpecialDetails || [])
-    ]);
-  } else {
-    memory.hostels = req.body.hostels;
-    memory.rooms = req.body.rooms;
-    memory.students = req.body.students;
-    memory.history = req.body.history || [];
-    memory.quartersResidents = req.body.quartersResidents || [];
-    memory.quartersSpecialDetails = req.body.quartersSpecialDetails || [];
-  }
-  await logAudit("Database restore completed", req.admin.username);
-  res.json({ ok: true });
-});
-
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, mongoReady, service: "Namakkal Medical College Hostel API" );
+  res.json({ ok: true, mongoReady, service: "Namakkal Medical College Hostel API" });
 });
 
 if (existsSync(distPath)) {
@@ -627,6 +727,15 @@ if (existsSync(distPath)) {
     });
   });
 }
+
+app.use((error, _req, res, _next) => {
+  const duplicate = error?.code === 11000;
+  const status = duplicate ? 409 : 500;
+  res.status(status).json({
+    message: duplicate ? "Duplicate record found" : "Server error",
+    detail: process.env.NODE_ENV === "production" ? undefined : error.message
+  });
+});
 
 connectMongo()
   .catch((error) => {

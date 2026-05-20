@@ -1,253 +1,157 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  ArchiveRestore, BedDouble, Bell, Building2, Camera, CheckCircle2, ClipboardList,
-  Download, Edit3, FileText, Home, IdCard, Layers3, LogOut, Moon,
-  Plus, Printer, Search, Settings, ShieldCheck, Stethoscope, Sun, UserCircle,
-  UserMinus, UserPlus, Users, X
+  BedDouble, Building2, CheckCircle2, Download, Edit3, Eye, FileSpreadsheet,
+  FileText, Home, Layers3, LogOut, Moon, Plus, Printer,
+  RotateCcw, Search, ShieldCheck, Stethoscope, Sun, UserCircle, UserMinus,
+  Users, X
 } from "lucide-react";
+import { jsPDF } from "jspdf";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis
+  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer,
+  Tooltip, XAxis, YAxis
 } from "recharts";
 import "./styles.css";
 
+const API = "/api";
 const today = new Date().toISOString().slice(0, 10);
-
-// Quarters types
 const quartersTypes = ["A", "C", "D"];
-
-// Validate phone number (10 digits)
-const validatePhone = (phone) => {
-  return /^\d{10}$/.test(phone);
+const residentStatuses = ["Active", "Vacated", "Transferred", "On Leave"];
+const pageSizes = [10, 25, 50];
+const emptyHostelResident = {
+  rollNumber: "",
+  name: "",
+  courseYear: "",
+  gender: "Male",
+  hostelName: "Boys Hostel",
+  roomNumber: "",
+  joiningDate: today,
+  contact: "",
+  parentName: "",
+  parentContact: ""
 };
-
-// Validate date
-const validateDate = (date) => {
-  return !isNaN(Date.parse(date));
+const emptyQuarter = {
+  quartersNo: "",
+  name: "",
+  designation: "",
+  department: "",
+  phoneNo: "",
+  ifhrmsNo: "",
+  refNoAndDate: "",
+  occupyDate: "",
+  ebNo: "",
+  quartersType: "A"
 };
-
-// Initialize quarters data with the required initial data
-const initializeQuartersData = () => {
-  const quartersData = [];
-
-  // C Type Quarters (C1 to C18)
-  const cTypes = [
-    { quartersNo: "C1", name: "Dr.V. Balaji", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C2", name: "Dr.V. Slimbarasan", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C3", name: "Dr.S.K. Jayaswarya", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C4", name: "Dr.A. Marudhavanan", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C5", name: "Dr.S. Balasubramanian", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C6", name: "Dr.T. Karthikeyan", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C7", name: "Dr.A.Mary Arul priya", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C8", name: "Dr.A.Daivik", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C9", name: "Dr.P.Gomathi", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C10", name: "Dr.M.Srimuthalage", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C11", name: "Dr.K.Shankar", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C12", name: "Dr.S.Jeyakumar", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C13", name: "Dr.P. Tamilarsi", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C14", name: "Dr.M. Sathish", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C15", name: "Dr.L.Mohanapriya", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C16", name: "Dr.S. Mukilan", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C17", name: "Dr.S. Vigneshwari", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "C18", name: "Dr.A.Gayatri", designation: "Doctor", department: "Medicine" }
-  ];
-
-  cTypes.forEach((item, index) => {
-    quartersData.push({
-      ...item,
-      quartersNo: `C${index + 1}`,
-      quartersType: "C",
-      phoneNo: "",
-      ifhrmsNo: "",
-      refNoAndDate: "",
-      occupyDate: "",
-      ebNo: ""
-    });
-  });
-
-  // A Type Quarters (A1 to A36)
-  const aTypes = [
-    { quartersNo: "A1", name: "P.R.ARVIND", designation: "Staff", department: "Administration" },
-    { quartersNo: "A2", name: "M.DEEPA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A3", name: "B.MENAKA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A4", name: "S.SHANKAR", designation: "Staff", department: "Administration" },
-    { quartersNo: "A5", name: "A.THIYARAJAN", designation: "Staff", department: "Administration" },
-    { quartersNo: "A6", name: "M.BALAMURGAN", designation: "Staff", department: "Administration" },
-    { quartersNo: "A7", name: "M.KUMAR", designation: "Staff", department: "Administration" },
-    { quartersNo: "A8", name: "M.MUTHU KRISHAN", designation: "Staff", department: "Administration" },
-    { quartersNo: "A9", name: "M.SETTU", designation: "Staff", department: "Administration" },
-    { quartersNo: "A10", name: "M.MUTHAMIZH", designation: "Staff", department: "Administration" },
-    { quartersNo: "A11", name: "P.BOOBALAN", designation: "Staff", department: "Administration" },
-    { quartersNo: "A12", name: "G.SURESH", designation: "Staff", department: "Administration" },
-    { quartersNo: "A13", name: "S.KALA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A14", name: "P.SAKUNTHALA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A15", name: "A.GEETHA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A16", name: "D.SATHIS KUMAR", designation: "Staff", department: "Administration" },
-    { quartersNo: "A17", name: "R.A,LASKSHMI DEVI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A18", name: "R.PALANIAMMAL", designation: "Staff", department: "Administration" },
-    { quartersNo: "A19", name: "S.SAMUNDESWARI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A20", name: "K.REVATHI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A21", name: "M.RADHAMANI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A22", name: "A.ARUNSHANKAR", designation: "Staff", department: "Administration" },
-    { quartersNo: "A23", name: "P.ANANDHAN", designation: "Staff", department: "Administration" },
-    { quartersNo: "A24", name: "S.KOKILA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A25", name: "N.PACHAMUTHU", designation: "Staff", department: "Administration" },
-    { quartersNo: "A26", name: "S.GUGANATHAN", designation: "Staff", department: "Administration" },
-    { quartersNo: "A27", name: "S.UMAMAHESWARI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A28", name: "S.STELLARUBI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A29", name: "S.SUBHA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A30", name: "S.RAMESH", designation: "Staff", department: "Administration" },
-    { quartersNo: "A31", name: "S.SOMALATHA", designation: "Staff", department: "Administration" },
-    { quartersNo: "A32", name: "M.KALAIVANI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A33", name: "R.PUSPAM", designation: "Staff", department: "Administration" },
-    { quartersNo: "A34", name: "R.SEVI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A35", name: "M.PUSPHASHERILI", designation: "Staff", department: "Administration" },
-    { quartersNo: "A36", name: "S.VASANTHA", designation: "Staff", department: "Administration" }
-  ];
-
-  aTypes.forEach((item, index) => {
-    quartersData.push({
-      ...item,
-      quartersNo: `A${index + 1}`,
-      quartersType: "A",
-      phoneNo: "",
-      ifhrmsNo: "",
-      refNoAndDate: "",
-      occupyDate: "",
-      ebNo: ""
-    });
-  });
-
-  // D Type Quarters (D1 to D8)
-  const dTypes = [
-    { quartersNo: "D1", name: "Dr.M. Dhanasekaran", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D2", name: "Dr.R. Gunasekaran", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D3", name: "Dr.S.Dhanalakshmi", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D4", name: "Dr.P.Arul", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D5", name: "Dr.P. Saravanan", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D6", name: "Dr.A.Leena Devi", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D7", name: "Dr.M.Sumathi", designation: "Doctor", department: "Medicine" },
-    { quartersNo: "D8", name: "Dr.M.Duraimurgan", designation: "Doctor", department: "Medicine" }
-  ];
-
-  dTypes.forEach((item, index) => {
-    quartersData.push({
-      ...item,
-      quartersNo: `D${index + 1}`,
-      quartersType: "D",
-      phoneNo: "",
-      ifhrmsNo: "",
-      refNoAndDate: "",
-      occupyDate: "",
-      ebNo: ""
-    });
-  });
-
-  return quartersData;
-};
-
-// Initialize special details data
-const initializeSpecialDetailsData = () => {
-  // Create empty special details for each quarter
-  const quartersData = initializeQuartersData();
-  return quartersData.map(q => ({
-    quartersNo: q.quartersNo,
-    specialNotes: "",
-    maintenanceIssues: "",
-    familyMembersCount: 0,
-    vehicleNumber: "",
-    aadhaarNumber: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    residentStatus: "Active"
-  }));
+const emptySpecial = {
+  quartersNo: "",
+  specialNotes: "",
+  maintenanceIssues: "",
+  familyMembersCount: 0,
+  vehicleNumber: "",
+  aadhaarNumber: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  residentStatus: "Active"
 };
 
 function App() {
-  const [isAuthed, setIsAuthed] = useState(() => localStorage.getItem("nmc_admin_token") === "demo-token");
+  const [token, setToken] = useState(() => localStorage.getItem("nmc_admin_token") || "");
   const [dark, setDark] = useState(() => localStorage.getItem("nmc_theme") === "dark");
-  const [active, setActive] = useState("Dashboard");
-  const [quartersData, setQuartersData] = useState(initializeQuartersData);
-  const [specialDetailsData, setSpecialDetailsData] = useState(initializeSpecialDetailsData);
+  const [active, setActive] = useState("Hostel Dashboard");
   const [query, setQuery] = useState("");
-  const [modal, setModal] = useState(null);
-  const [editingQuarters, setEditingQuarters] = useState(null);
-  const [viewingQuarters, setViewingQuarters] = useState(null);
-  const [updatingSpecialDetails, setUpdatingSpecialDetails] = useState(null);
+  const [hostelFilters, setHostelFilters] = useState({
+    hostelType: [], floor: [], roomNumber: [], occupancyStatus: [], department: [], academicYear: [], gender: [], vacatingStatus: [], sortBy: "name"
+  });
+  const [quartersFilters, setQuartersFilters] = useState({
+    quartersType: [], residentStatus: [], department: [], designation: [], occupancy: [], vehicleNumber: [], ifhrmsNo: [], sortBy: "quartersNo"
+  });
+  const [hostelPage, setHostelPage] = useState({ page: 1, size: 10 });
+  const [quartersPage, setQuartersPage] = useState({ page: 1, size: 10 });
+  const [state, setState] = useState({
+    hostels: [],
+    rooms: [],
+    students: [],
+    history: [],
+    auditLogs: [],
+    quartersResidents: [],
+    quartersSpecialDetails: [],
+    dashboard: {}
+  });
+  const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
-  const [auditLogs, setAuditLogs] = useState([
-    "System initialized with separated quarters module",
-    "Quarters data initialized with A, C, D type quarters"
-  ]);
+  const [modal, setModal] = useState(null);
 
-  // Filter quarters data based on search query
-  const filteredQuarters = quartersData.filter(q =>
-    `${q.quartersNo} ${q.name} ${q.designation} ${q.department} ${q.phoneNo} ${q.ifhrmsNo}`.toLowerCase().includes(query.toLowerCase())
-  );
+  const authed = Boolean(token);
 
-  // Get special details for a specific quarter
-  const getSpecialDetailsByQuartersNo = (quartersNo) => {
-    return specialDetailsData.find(sd => sd.quartersNo === quartersNo) || {
-      quartersNo,
-      specialNotes: "",
-      maintenanceIssues: "",
-      familyMembersCount: 0,
-      vehicleNumber: "",
-      aadhaarNumber: "",
-      emergencyContactName: "",
-      emergencyContactPhone: "",
-      residentStatus: "Active"
-    };
-  };
+  useEffect(() => {
+    if (authed) loadBootstrap();
+  }, [authed]);
 
-  // Update special details
-  const updateSpecialDetails = (quartersNo, updatedData) => {
-    setSpecialDetailsData(prev => prev.map(sd =>
-      sd.quartersNo === quartersNo ? { ...sd, ...updatedData } : sd
-    ));
+  async function request(path, options = {}) {
+    const response = await fetch(`${API}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {})
+      }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || "Request failed");
+    return data;
+  }
 
-    // Update resident status in quarters data if it changed
-    if (updatedData.residentStatus !== undefined) {
-      setQuartersData(prev => prev.map(q =>
-        q.quartersNo === quartersNo ? { ...q, ...updatedData } : q
-      ));
+  async function loadBootstrap() {
+    setLoading(true);
+    try {
+      const data = await request("/bootstrap");
+      setState({
+        hostels: data.hostels || [],
+        rooms: data.rooms || [],
+        students: data.students || [],
+        history: data.history || [],
+        auditLogs: data.auditLogs || [],
+        quartersResidents: data.quartersResidents || [],
+        quartersSpecialDetails: data.quartersSpecialDetails || [],
+        dashboard: data.dashboard || {}
+      });
+    } catch (error) {
+      notify(error.message);
+      if (error.message.includes("token")) logout();
+    } finally {
+      setLoading(false);
     }
-  };
+  }
 
-  // Count statistics
-  const totalQuarters = quartersData.length;
-  const occupiedQuarters = quartersData.filter(q => {
-    const sd = getSpecialDetailsByQuartersNo(q.quartersNo);
-    return sd.residentStatus !== "Vacated";
-  }).length;
-  const vacantQuarters = totalQuarters - occupiedQuarters;
+  async function login(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    try {
+      const data = await fetch(`${API}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: form.get("username"), password: form.get("password") })
+      }).then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message || "Login failed");
+        return payload;
+      });
+      localStorage.setItem("nmc_admin_token", data.token);
+      setToken(data.token);
+      notify("Signed in successfully");
+    } catch (error) {
+      notify(error.message);
+    }
+  }
 
-  const typeCounts = {
-    A: quartersData.filter(q => q.quartersType === "A").length,
-    C: quartersData.filter(q => q.quartersType === "C").length,
-    D: quartersData.filter(q => q.quartersType === "D").length
-  };
+  function logout() {
+    localStorage.removeItem("nmc_admin_token");
+    setToken("");
+  }
 
   function notify(message) {
     setToast(message);
-    setTimeout(() => setToast(""), 2600);
-  }
-
-  function addAudit(action) {
-    setAuditLogs([`${new Date().toLocaleString()} - ${action}`, ...auditLogs]);
-  }
-
-  function login(event) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    if (form.get("username") === "admin" && form.get("password") === "admin123") {
-      localStorage.setItem("nmc_admin_token", "demo-token");
-      setIsAuthed(true);
-      addAudit("Admin login");
-      return;
-    }
-    notify("Invalid admin credentials. Use admin / admin123 for demo.");
+    setTimeout(() => setToast(""), 2800);
   }
 
   function toggleTheme() {
@@ -256,1259 +160,916 @@ function App() {
     localStorage.setItem("nmc_theme", next ? "dark" : "light");
   }
 
-  function addQuartersResident(data) {
-    // Validation
-    if (!data.quartersNo) {
-      notify("Quarters number is required");
-      return;
-    }
-
-    if (quartersData.some(q => q.quartersNo === data.quartersNo)) {
-      notify("Quarters number already exists");
-      return;
-    }
-
-    if (!data.name) {
-      notify("Name is required");
-      return;
-    }
-
-    if (!data.quartersType) {
-      notify("Quarters type is required");
-      return;
-    }
-
-    if (!quartersTypes.includes(data.quartersType)) {
-      notify("Invalid quarters type");
-      return;
-    }
-
-    if (data.phoneNo && !validatePhone(data.phoneNo)) {
-      notify("Phone number must be exactly 10 digits");
-      return;
-    }
-
-    if (data.ebNo && quartersData.some(q => q.ebNo === data.ebNo)) {
-      notify("EB number must be unique");
-      return;
-    }
-
-    if (data.occupyDate && !validateDate(data.occupyDate)) {
-      notify("Invalid occupy date");
-      return;
-    }
-
-    const newQuarters = {
-      quartersNo: data.quartersNo,
-      name: data.name,
-      designation: data.designation || "",
-      department: data.department || "",
-      phoneNo: data.phoneNo || "",
-      ifhrmsNo: data.ifhrmsNo || "",
-      refNoAndDate: data.refNoAndDate || "",
-      occupyDate: data.occupyDate || "",
-      ebNo: data.ebNo || "",
-      quartersType: data.quartersType
-    };
-
-    setQuartersData(prev => [newQuarters, ...prev]);
-
-    // Initialize special details for new quarters
-    setSpecialDetailsData(prev => [
-      {
-        quartersNo: data.quartersNo,
-        specialNotes: "",
-        maintenanceIssues: "",
-        familyMembersCount: 0,
-        vehicleNumber: "",
-        aadhaarNumber: "",
-        emergencyContactName: "",
-        emergencyContactPhone: "",
-        residentStatus: "Active"
-      },
-      ...prev
-    ]);
-
-    notify(`New quarters resident added: ${data.name}`);
-    addAudit(`Added quarters resident ${data.quartersNo}`);
-  }
-
-  function updateQuartersResident(data) {
-    // Validation
-    if (!data.quartersNo) {
-      notify("Quarters number is required");
-      return;
-    }
-
-    const existingIndex = quartersData.findIndex(q => q.quartersNo === data.quartersNo);
-    if (existingIndex === -1) {
-      notify("Quarters not found");
-      return;
-    }
-
-    // Check if quarters number is being changed to an existing one
-    if (data.quartersNo !== quartersData[existingIndex].quartersNo &&
-        quartersData.some(q => q.quartersNo === data.quartersNo)) {
-      notify("Quarters number already exists");
-      return;
-    }
-
-    if (!data.name) {
-      notify("Name is required");
-      return;
-    }
-
-    if (!data.quartersType) {
-      notify("Quarters type is required");
-      return;
-    }
-
-    if (!quartersTypes.includes(data.quartersType)) {
-      notify("Invalid quarters type");
-      return;
-    }
-
-    if (data.phoneNo && !validatePhone(data.phoneNo)) {
-      notify("Phone number must be exactly 10 digits");
-      return;
-    }
-
-    if (data.ebNo && quartersData.some(q => q.ebNo === data.ebNo && q.quartersNo !== data.quartersNo)) {
-      notify("EB number must be unique");
-      return;
-    }
-
-    if (data.occupyDate && !validateDate(data.occupyDate)) {
-      notify("Invalid occupy date");
-      return;
-    }
-
-    const updatedQuarters = {
-      quartersNo: data.quartersNo,
-      name: data.name,
-      designation: data.designation || "",
-      department: data.department || "",
-      phoneNo: data.phoneNo || "",
-      ifhrmsNo: data.ifhrmsNo || "",
-      refNoAndDate: data.refNoAndDate || "",
-      occupyDate: data.occupyDate || "",
-      ebNo: data.ebNo || "",
-      quartersType: data.quartersType
-    };
-
-    setQuartersData(prev => prev.map((q, index) =>
-      index === existingIndex ? updatedQuarters : q
-    ));
-
-    notify(`Quarters resident updated: ${data.name}`);
-    addAudit(`Updated quarters resident ${data.quartersNo}`);
-  }
-
-  function deleteQuartersResident(quartersNo) {
-    if (window.confirm(`Are you sure you want to delete quarters ${quartersNo}?`)) {
-      setQuartersData(prev => prev.filter(q => q.quartersNo !== quartersNo));
-      setSpecialDetailsData(prev => prev.filter(sd => sd.quartersNo !== quartersNo));
-      notify(`Quarters ${quartersNo} deleted`);
-      addAudit(`Deleted quarters ${quartersNo}`);
+  async function saveHostelResident(payload, originalRollNumber) {
+    try {
+      const path = originalRollNumber ? `/students/${encodeURIComponent(originalRollNumber)}` : "/students";
+      const method = originalRollNumber ? "PUT" : "POST";
+      await request(path, { method, body: JSON.stringify(payload) });
+      setModal(null);
+      notify(originalRollNumber ? "Hostel resident updated" : "Hostel resident added");
+      await loadBootstrap();
+    } catch (error) {
+      notify(error.message);
     }
   }
 
-  function updateSpecialDetailsHandler(data) {
-    const quartersNo = data.quartersNo;
-    const existingIndex = specialDetailsData.findIndex(sd => sd.quartersNo === quartersNo);
-
-    if (existingIndex === -1) {
-      notify("Quarters not found");
-      return;
+  async function vacateResident(student, payload) {
+    try {
+      await request(`/students/${encodeURIComponent(student.rollNumber)}/vacate`, { method: "POST", body: JSON.stringify(payload) });
+      setModal(null);
+      notify(`${student.name} vacated ${student.roomNumber}`);
+      await loadBootstrap();
+    } catch (error) {
+      notify(error.message);
     }
-
-    const updatedData = {
-      specialNotes: data.specialNotes || "",
-      maintenanceIssues: data.maintenanceIssues || "",
-      familyMembersCount: parseInt(data.familyMembersCount) || 0,
-      vehicleNumber: data.vehicleNumber || "",
-      aadhaarNumber: data.aadhaarNumber || "",
-      emergencyContactName: data.emergencyContactName || "",
-      emergencyContactPhone: data.emergencyContactPhone || "",
-      residentStatus: data.residentStatus || "Active"
-    };
-
-    // If status is changing to Vacated, we'll handle it in the updateSpecialDetails function
-    setSpecialDetailsData(prev => prev.map((sd, index) =>
-      index === existingIndex ? { ...sd, ...updatedData } : sd
-    ));
-
-    // Update quarters data with the new resident status
-    setQuartersData(prev => prev.map(q =>
-      q.quartersNo === quartersNo ? { ...q, ...updatedData } : q
-    ));
-
-    notify(`Special details updated for quarters ${quartersNo}`);
-    addAudit(`Updated special details for quarters ${quartersNo}`);
   }
 
-  if (!isAuthed) {
-    return <main className={dark ? "dark" : ""}><section className="login-shell"><div className="login-hero"><LogoMark /><p className="eyebrow">Namakkal Medical College</p><h1>Quarters Management System</h1><p>Management system for quarters accommodation (A, C, D types)</p><div className="hero-metrics"><span><ShieldCheck size={18} />Admin Access</span><span><Building2 size={18} />Quarters Management</span></div></div><form className="login-card" onSubmit={login}><div className="brand-row"><LogoMark /><div><strong>Quarters Administration</strong><small>Secure admin login</small></div></div><label>Username<input name="username" placeholder="admin" required /></label><label>Password<input name="password" type="password" placeholder="admin123" required /></label><button className="primary" type="submit">Secure Login</button><p className="hint">Demo credentials: admin / admin123</p></form>{toast && <div className="toast">{toast}</div>}</section></main>;
+  async function transferResident(student, payload) {
+    try {
+      await request(`/students/${encodeURIComponent(student.rollNumber)}/transfer`, { method: "POST", body: JSON.stringify(payload) });
+      setModal(null);
+      notify(`${student.name} transferred`);
+      await loadBootstrap();
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+
+  async function saveQuarter(payload, originalQuartersNo) {
+    try {
+      const path = originalQuartersNo ? `/quarters/${encodeURIComponent(originalQuartersNo)}` : "/quarters";
+      const method = originalQuartersNo ? "PUT" : "POST";
+      await request(path, { method, body: JSON.stringify(payload) });
+      setModal(null);
+      notify(originalQuartersNo ? "Quarters resident updated" : "Quarters resident added");
+      await loadBootstrap();
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+
+  async function deleteQuarter(quartersNo) {
+    if (!window.confirm(`Delete quarters resident ${quartersNo}?`)) return;
+    try {
+      await request(`/quarters/${encodeURIComponent(quartersNo)}`, { method: "DELETE" });
+      notify("Quarters resident deleted");
+      await loadBootstrap();
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+
+  async function saveSpecialDetails(payload) {
+    try {
+      await request(`/quarters/special-details/${encodeURIComponent(payload.quartersNo)}`, { method: "PUT", body: JSON.stringify(payload) });
+      setModal(null);
+      notify("Special details updated");
+      await loadBootstrap();
+    } catch (error) {
+      notify(error.message);
+    }
+  }
+
+  const specialByQuarter = useMemo(() => {
+    return new Map(state.quartersSpecialDetails.map((item) => [item.quartersNo, { ...emptySpecial, ...item }]));
+  }, [state.quartersSpecialDetails]);
+
+  const quartersRows = useMemo(() => {
+    const term = query.toLowerCase();
+    const includes = (values, value) => !values.length || values.includes(value || "");
+    return state.quartersResidents.filter((resident) => {
+      const special = specialByQuarter.get(resident.quartersNo) || { ...emptySpecial, quartersNo: resident.quartersNo };
+      const haystack = [
+        resident.name, resident.quartersNo, resident.ifhrmsNo, resident.phoneNo,
+        special.vehicleNumber, resident.department, resident.designation
+      ].join(" ").toLowerCase();
+      const status = special.residentStatus || "Active";
+      const occupied = status !== "Vacated";
+      return (!term || haystack.includes(term)) &&
+        includes(quartersFilters.quartersType, resident.quartersType) &&
+        includes(quartersFilters.department, resident.department) &&
+        includes(quartersFilters.designation, resident.designation) &&
+        includes(quartersFilters.residentStatus, status) &&
+        includes(quartersFilters.vehicleNumber, special.vehicleNumber) &&
+        includes(quartersFilters.ifhrmsNo, resident.ifhrmsNo) &&
+        (!quartersFilters.occupancy.length || quartersFilters.occupancy.includes(occupied ? "Occupied" : "Vacant"));
+    }).sort((a, b) => String(a[quartersFilters.sortBy] || "").localeCompare(String(b[quartersFilters.sortBy] || ""), undefined, { numeric: true }));
+  }, [state.quartersResidents, specialByQuarter, query, quartersFilters]);
+
+  const hostelResidents = useMemo(() => {
+    const term = query.toLowerCase();
+    const includes = (values, value) => !values.length || values.includes(value || "");
+    return state.students.filter((student) => {
+      const room = state.rooms.find((item) => item.roomNumber === student.roomNumber) || {};
+      const haystack = [student.rollNumber, student.name, student.hostelName, student.roomNumber, student.courseYear, student.contact, student.department].join(" ").toLowerCase();
+      return (!term || haystack.includes(term)) &&
+        includes(hostelFilters.hostelType, student.hostelName) &&
+        includes(hostelFilters.floor, room.floor) &&
+        includes(hostelFilters.roomNumber, student.roomNumber) &&
+        includes(hostelFilters.department, student.department) &&
+        includes(hostelFilters.academicYear, student.courseYear) &&
+        includes(hostelFilters.gender, student.gender) &&
+        includes(hostelFilters.vacatingStatus, student.status) &&
+        (!hostelFilters.occupancyStatus.length || hostelFilters.occupancyStatus.includes(room.vacancy === 0 ? "Full" : room.occupied > 0 ? "Partially Occupied" : "Vacant"));
+    }).sort((a, b) => String(a[hostelFilters.sortBy] || "").localeCompare(String(b[hostelFilters.sortBy] || ""), undefined, { numeric: true }));
+  }, [state.students, state.rooms, query, hostelFilters]);
+
+  const hostelStats = useMemo(() => makeHostelStats(state.hostels, state.rooms, state.students), [state.hostels, state.rooms, state.students]);
+  const quartersStats = useMemo(() => makeQuartersStats(state.quartersResidents, specialByQuarter), [state.quartersResidents, specialByQuarter]);
+
+  if (!authed) {
+    return (
+      <main className={dark ? "dark" : ""}>
+        <section className="login-shell">
+          <div className="login-hero">
+            <LogoMark />
+            <p className="eyebrow">Namakkal Medical College</p>
+            <h1>Hostel & Quarters Management</h1>
+            <p>Separate Hostel and Quarters modules with shared secure administration, live occupancy, resident records, and manual CRUD workflows.</p>
+            <div className="hero-metrics"><span><ShieldCheck size={18} />Admin Access</span><span><Building2 size={18} />Two Independent Modules</span></div>
+          </div>
+          <form className="login-card" onSubmit={login}>
+            <div className="brand-row"><LogoMark /><div><strong>Administration</strong><small>Secure login</small></div></div>
+            <label>Username<input name="username" placeholder="admin" required /></label>
+            <label>Password<input name="password" type="password" placeholder="admin123" required /></label>
+            <button className="primary" type="submit">Secure Login</button>
+            <p className="hint">Default credentials: admin / admin123</p>
+          </form>
+          {toast && <div className="toast">{toast}</div>}
+        </section>
+      </main>
+    );
   }
 
   const nav = [
-    ["Dashboard", Home],
-    ["Quarters Dashboard", Layers3],
-    ["Add Quarters", Plus],
+    ["Hostel Dashboard", Home],
+    ["Hostel Rooms", BedDouble],
+    ["Hostel Residents", Users],
+    ["Quarters Dashboard", Building2],
+    ["Quarters Residents", UserCircle],
     ["Special Details", FileText],
-    ["Reports", ClipboardList],
-    ["Settings", Settings]
+    ["Letters", FileText],
+    ["Excel Exports", FileSpreadsheet]
   ];
 
   return (
     <main className={dark ? "app dark" : "app"}>
       <aside className="sidebar">
-        <div className="brand-row"><LogoMark /><div><strong>Namakkal Medical College</strong><strong>Quarters Management</strong></div></div>
+        <div className="brand-row"><LogoMark /><div><strong>Namakkal Medical College</strong><small>Hostel & Quarters</small></div></div>
         <nav>{nav.map(([item, Icon]) => <button key={item} className={active === item ? "nav active" : "nav"} onClick={() => setActive(item)}><Icon size={18} />{item}</button>)}</nav>
       </aside>
       <section className="workspace">
         <header className="topbar">
-          <div><p className="eyebrow">Quarters Administration Dashboard</p><h2>{active}</h2></div>
+          <div><p className="eyebrow">Administration Workspace</p><h2>{active}</h2></div>
           <div className="top-actions">
-            <div className="search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search quarters no, name, designation, department, phone" /></div>
+            <div className="search"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search records" /></div>
             <button className="profile-pill"><UserCircle size={18} />Admin</button>
             <button className="icon-button" onClick={toggleTheme} title="Toggle theme">{dark ? <Sun size={18} /> : <Moon size={18} />}</button>
-            <button className="icon-button" onClick={() => { localStorage.removeItem("nmc_admin_token"); setIsAuthed(false); }} title="Sign out"><LogOut size={18} /></button>
+            <button className="icon-button" onClick={logout} title="Sign out"><LogOut size={18} /></button>
           </div>
         </header>
-        {active === "Dashboard" && <Dashboard
-          quartersData={quartersData}
-          specialDetailsData={specialDetailsData}
-          filteredQuarters={filteredQuarters}
-          totalQuarters={totalQuarters}
-          occupiedQuarters={occupiedQuarters}
-          vacantQuarters={vacantQuarters}
-          typeCounts={typeCounts}
-          query={query}
-          setQuery={setQuery}
-          addQuartersResident={addQuartersResident}
-          updateQuartersResident={updateQuartersResident}
-          deleteQuartersResident={deleteQuartersResident}
-          updateSpecialDetailsHandler={updateSpecialDetailsHandler}
-          getSpecialDetailsByQuartersNo={getSpecialDetailsByQuartersNo}
-          setEditingQuarters={setEditingQuarters}
-          setViewingQuarters={setViewingQuarters}
-          setUpdatingSpecialDetails={setUpdatingSpecialDetails}
-          editingQuarters={editingQuarters}
-          viewingQuarters={viewingQuarters}
-          updatingSpecialDetails={updatingSpecialDetails}
-          notify={notify}
-          addAudit={addAudit}
-        />}
-        {active === "Quarters Dashboard" && <QuartersDashboard
-          quartersData={quartersData}
-          specialDetailsData={specialDetailsData}
-          filteredQuarters={filteredQuarters}
-          totalQuarters={totalQuarters}
-          occupiedQuarters={occupiedQuarters}
-          vacantQuarters={vacantQuarters}
-          typeCounts={typeCounts}
-          query={query}
-          setQuery={setQuery}
-          addQuartersResident={addQuartersResident}
-          updateQuartersResident={updateQuartersResident}
-          deleteQuartersResident={deleteQuartersResident}
-          updateSpecialDetailsHandler={updateSpecialDetailsHandler}
-          getSpecialDetailsByQuartersNo={getSpecialDetailsByQuartersNo}
-          setEditingQuarters={setEditingQuarters}
-          setViewingQuarters={setViewingQuarters}
-          setUpdatingSpecialDetails={setUpdatingSpecialDetails}
-          editingQuarters={editingQuarters}
-          viewingQuarters={viewingQuarters}
-          updatingSpecialDetails={updatingSpecialDetails}
-          notify={notify}
-          addAudit={addAudit}
-        />}
-        {active === "Add Quarters" && <QuartersForm
-          onSubmit={addQuartersResident}
-          editingQuarters={editingQuarters}
-          setEditingQuarters={setEditingQuarters}
-          notify={notify}
-          addAudit={addAudit}
-        />}
-        {active === "Special Details" && <SpecialDetailsForm
-          quartersData={quartersData}
-          specialDetailsData={specialDetailsData}
-          filteredQuarters={filteredQuarters}
-          query={query}
-          setQuery={setQuery}
-          updateSpecialDetailsHandler={updateSpecialDetailsHandler}
-          getSpecialDetailsByQuartersNo={getSpecialDetailsByQuartersNo}
-          setUpdatingSpecialDetails={setUpdatingSpecialDetails}
-          updatingSpecialDetails={updatingSpecialDetails}
-          notify={notify}
-          addAudit={addAudit}
-        />}
-        {active === "Reports" && <QuartersReports
-          quartersData={quartersData}
-          specialDetailsData={specialDetailsData}
-          filteredQuarters={filteredQuarters}
-          notify={notify}
-          addAudit={addAudit}
-        />}
-        {active === "Settings" && <AdminTools
-          auditLogs={auditLogs}
-          addAudit={addAudit}
-          notify={notify}
-          quartersData={quartersData}
-          specialDetailsData={specialDetailsData}
-        />}
-        {editingQuarters && <Modal title="Edit Quarters Resident" onClose={() => setEditingQuarters(null)}><QuartersForm quartersData={editingQuarters} onSubmit={updateQuartersResident} setEditingQuarters={setEditingQuarters} notify={notify} addAudit={addAudit} /></Modal>}
-        {viewingQuarters && <Modal title="Quarters Details" onClose={() => setViewingQuarters(null)}><QuartersDetails quartersData={quartersData} specialDetailsData={specialDetailsData} quartersNo={viewingQuarters} /></Modal>}
-        {updatingSpecialDetails && <Modal title="Update Special Details" onClose={() => setUpdatingSpecialDetails(null)}><SpecialDetailsForm
-          quartersData={quartersData}
-          specialDetailsData={specialDetailsData}
-          quartersToUpdate={updatingSpecialDetails}
-          onSubmit={updateSpecialDetailsHandler}
-          setUpdatingSpecialDetails={setUpdatingSpecialDetails}
-          notify={notify}
-          addAudit={addAudit}
-        /></Modal>}
+
+        {loading && <div className="notice">Loading latest records...</div>}
+        {active === "Hostel Dashboard" && <HostelDashboard stats={hostelStats} rooms={state.rooms} students={hostelResidents} onAdd={() => setModal({ type: "hostel-form" })} />}
+        {active === "Hostel Rooms" && <HostelRooms rooms={state.rooms} hostels={state.hostels} onTransfer={(room) => setModal({ type: "transfer-room", room })} />}
+        {active === "Hostel Residents" && <HostelResidents students={hostelResidents} allStudents={state.students} rooms={state.rooms} filters={hostelFilters} setFilters={setHostelFilters} pageState={hostelPage} setPageState={setHostelPage} onAdd={() => setModal({ type: "hostel-form" })} onEdit={(student) => setModal({ type: "hostel-form", student })} onVacate={(student) => setModal({ type: "vacate", student })} onTransfer={(student) => setModal({ type: "transfer", student })} onLetter={(student) => setModal({ type: "vacating-letter", student })} />}
+        {active === "Quarters Dashboard" && <QuartersDashboard stats={quartersStats} rows={quartersRows} onAdd={() => setModal({ type: "quarter-form" })} />}
+        {active === "Quarters Residents" && <QuartersResidents rows={quartersRows} allRows={state.quartersResidents} specialByQuarter={specialByQuarter} filters={quartersFilters} setFilters={setQuartersFilters} pageState={quartersPage} setPageState={setQuartersPage} onAdd={() => setModal({ type: "quarter-form" })} onEdit={(resident) => setModal({ type: "quarter-form", resident })} onSpecial={(resident) => setModal({ type: "special-form", resident })} onDelete={deleteQuarter} />}
+        {active === "Special Details" && <SpecialDetails rows={quartersRows} specialByQuarter={specialByQuarter} onSpecial={(resident) => setModal({ type: "special-form", resident })} />}
+        {active === "Letters" && <LetterGenerator students={state.students} quartersResidents={state.quartersResidents} specialByQuarter={specialByQuarter} onPreview={(letter) => setModal({ type: "letter-preview", letter })} notify={notify} />}
+        {active === "Excel Exports" && <ExcelExports students={hostelResidents} allStudents={state.students} rooms={state.rooms} hostels={state.hostels} quartersRows={quartersRows} allQuarters={state.quartersResidents} specialByQuarter={specialByQuarter} notify={notify} />}
+
+        {modal?.type === "hostel-form" && <Modal title={modal.student ? "Edit Hostel Resident" : "Add Hostel Resident"} onClose={() => setModal(null)}><HostelResidentForm student={modal.student} rooms={state.rooms} hostels={state.hostels} onSubmit={saveHostelResident} /></Modal>}
+        {modal?.type === "vacate" && <Modal title="Vacate Room" onClose={() => setModal(null)}><VacateForm student={modal.student} onSubmit={vacateResident} /></Modal>}
+        {modal?.type === "transfer" && <Modal title="Transfer Resident" onClose={() => setModal(null)}><TransferForm student={modal.student} rooms={state.rooms} onSubmit={transferResident} /></Modal>}
+        {modal?.type === "quarter-form" && <Modal title={modal.resident ? "Edit Quarters Resident" : "Add New Resident"} onClose={() => setModal(null)}><QuarterForm resident={modal.resident} existing={state.quartersResidents} onSubmit={saveQuarter} /></Modal>}
+        {modal?.type === "special-form" && <Modal title="Update Special Details" onClose={() => setModal(null)}><SpecialForm resident={modal.resident} special={specialByQuarter.get(modal.resident.quartersNo)} onSubmit={saveSpecialDetails} /></Modal>}
+        {modal?.type === "vacating-letter" && <Modal title="Vacating Letter Generator" onClose={() => setModal(null)}><VacatingLetterForm student={modal.student} onPreview={(letter) => setModal({ type: "letter-preview", letter })} /></Modal>}
+        {modal?.type === "letter-preview" && <Modal title="Letter Preview" onClose={() => setModal(null)}><LetterPreview letter={modal.letter} /></Modal>}
         {toast && <div className="toast">{toast}</div>}
       </section>
     </main>
   );
 }
 
-function Dashboard({
-  quartersData,
-  specialDetailsData,
-  filteredQuarters,
-  totalQuarters,
-  occupiedQuarters,
-  vacantQuarters,
-  typeCounts,
-  query,
-  setQuery,
-  addQuartersResident,
-  updateQuartersResident,
-  deleteQuartersResident,
-  updateSpecialDetailsHandler,
-  getSpecialDetailsByQuartersNo,
-  setEditingQuarters,
-  setViewingQuarters,
-  setUpdatingSpecialDetails,
-  editingQuarters,
-  viewingQuarters,
-  updatingSpecialDetails,
-  notify,
-  addAudit
-}) {
-  // Status badge colors
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "Active": return "#10b981"; // Green
-      case "Vacated": return "#ef4444"; // Red
-      case "Transferred": return "#f59e0b"; // Orange
-      case "On Leave": return "#3b82f6"; // Blue
-      default: return "#6b7280"; // Gray
-    }
-  };
-
-  return <div className="screen quarters-theme">
-    <div className="command-strip">
-      <div>
-        <p className="eyebrow">Quarters Management Dashboard</p>
-        <h3>Quarters Dashboard: {totalQuarters} total quarters</h3>
-      </div>
-      <button className="primary" onClick={() => setEditingQuarters(null)}>
-        <Plus size={16} /> Add New Quarters
-      </button>
-    </div>
-
-    <div className="stat-grid">
-      <article className="stat-card">
-        <span><Building2 size={21} /></span>
-        <p>Total Quarters</p>
-        <strong>{totalQuarters}</strong>
-      </article>
-      <article className="stat-card">
-        <span><UserCircle size={21} /></span>
-        <p>Occupied Quarters</p>
-        <strong>{occupiedQuarters}</strong>
-      </article>
-      <article className="stat-card">
-        <span><CheckCircle2 size={21} /></span>
-        <p>Vacant Quarters</p>
-        <strong>{vacantQuarters}</strong>
-      </article>
-      <article className="stat-card">
-        <span><Layers3 size={21} /></span>
-        <p>A-Type Quarters</p>
-        <strong>{typeCounts.A}</strong>
-      </article>
-      <article className="stat-card">
-        <span><Layers3 size={21} /></span>
-        <p>C-Type Quarters</p>
-        <strong>{typeCounts.C}</strong>
-      </article>
-      <article className="stat-card">
-        <span><Layers3 size={21} /></span>
-        <p>D-Type Quarters</p>
-        <strong>{typeCounts.D}</strong>
-      </article>
-    </div>
-
-    <div className="panel-grid">
-      <section className="panel">
-        <PanelHead title="Quarters Listing" />
-        <QuartersTable
-          quartersData={filteredQuarters}
-          specialDetailsData={specialDetailsData}
-          getSpecialDetailsByQuartersNo={getSpecialDetailsByQuartersNo}
-          updateQuartersResident={updateQuartersResident}
-          deleteQuartersResident={deleteQuartersResident}
-          updateSpecialDetailsHandler={updateSpecialDetailsHandler}
-          getStatusColor={getStatusColor}
-          setEditingQuarters={setEditingQuarters}
-          setViewingQuarters={setViewingQuarters}
-          setUpdatingSpecialDetails={setUpdatingSpecialDetails}
-        />
-      </section>
-    </div>
-  </div>;
-}
-
-function QuartersForm({ onSubmit, quartersData, setEditingQuarters, notify, addAudit }) {
-  const [formData, setFormData] = useState({
-    quartersNo: "",
-    name: "",
-    designation: "",
-    department: "",
-    phoneNo: "",
-    ifhrmsNo: "",
-    refNoAndDate: "",
-    occupyDate: "",
-    ebNo: "",
-    quartersType: ""
+function makeHostelStats(hostels, rooms, students) {
+  const active = students.filter((item) => item.status === "active");
+  const occupiedRooms = rooms.filter((room) => room.occupied > 0).length;
+  const capacity = rooms.reduce((sum, room) => sum + Number(room.capacity || 0), 0);
+  const floorWise = Object.values(rooms.reduce((acc, room) => {
+    acc[room.floor] ||= { name: room.floor, rooms: 0, residents: 0 };
+    acc[room.floor].rooms += 1;
+    acc[room.floor].residents += Number(room.occupied || 0);
+    return acc;
+  }, {}));
+  const hostelWise = hostels.map((hostel) => {
+    const hostelRooms = rooms.filter((room) => room.hostelName === hostel.name);
+    return { name: hostel.name, rooms: hostelRooms.length, residents: hostelRooms.reduce((sum, room) => sum + Number(room.occupied || 0), 0) };
   });
-
-  const [errors, setErrors] = useState({});
-
-  // If editing existing quarters, populate form data
-  if (quartersData) {
-    setFormData(quartersData);
-  }
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error for this field when user types
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: "" }));
-    }
+  return {
+    totalRooms: rooms.length,
+    occupiedRooms,
+    vacantRooms: rooms.length - occupiedRooms,
+    totalResidents: active.length,
+    capacity,
+    floorWise,
+    hostelWise,
+    genderWise: [
+      { name: "Male", value: active.filter((item) => item.gender === "Male").length },
+      { name: "Female", value: active.filter((item) => item.gender === "Female").length }
+    ]
   };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    // Validation
-    const newErrors = {};
-
-    if (!formData.quartersNo) newErrors.quartersNo = "Quarters number is required";
-    else if (quartersData && quartersData.some(q => q.quartersNo === formData.quartersNo && q !== quartersData)) {
-      newErrors.quartersNo = "Quarters number already exists";
-    }
-
-    if (!formData.name) newErrors.name = "Name is required";
-
-    if (!formData.quartersType) newErrors.quartersType = "Quarters type is required";
-    else if (!["A", "C", "D"].includes(formData.quartersType)) {
-      newErrors.quartersType = "Invalid quarters type";
-    }
-
-    if (formData.phoneNo && !/^\d{10}$/.test(formData.phoneNo)) {
-      newErrors.phoneNo = "Phone number must be exactly 10 digits";
-    }
-
-    if (formData.ebNo && quartersData.some(q => q.ebNo === formData.ebNo && q !== quartersData)) {
-      newErrors.ebNo = "EB number must be unique";
-    }
-
-    if (formData.occupyDate && isNaN(Date.parse(formData.occupyDate))) {
-      newErrors.occupyDate = "Invalid occupy date";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    onSubmit(formData);
-    setEditingQuarters(null);
-  };
-
-  return (
-    <div className="screen">
-      <PanelHead
-        title={quartersData ? "Edit Quarters Resident" : "Add New Quarters Resident"}
-        action={<button className="primary" onClick={() => setEditingQuarters(null)}><X size={18} /></button>}
-      />
-      <form className="form-grid" onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label>Quarters No <span className="required">*</span></label>
-          <input
-            name="quartersNo"
-            value={formData.quartersNo}
-            onChange={handleChange}
-          />
-          {errors.quartersNo && <span className="error">{errors.quartersNo}</span>}
-        </div>
-
-        <div className="form-group">
-          <label>Name <span className="required">*</span></label>
-          <input
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-          />
-          {errors.name && <span className="error">{errors.name}</span>}
-        </div>
-
-        <div className="form-group">
-          <label>Designation</label>
-          <input
-            name="designation"
-            value={formData.designation}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Department</label>
-          <input
-            name="department"
-            value={formData.department}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Phone Number</label>
-          <input
-            name="phoneNo"
-            value={formData.phoneNo}
-            onChange={handleChange}
-          />
-          {errors.phoneNo && <span className="error">{errors.phoneNo}</span>}
-          <p className="help-text">Must be exactly 10 digits</p>
-        </div>
-
-        <div className="form-group">
-          <label>IFHRMS Number</label>
-          <input
-            name="ifhrmsNo"
-            value={formData.ifhrmsNo}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Ref No & Date</label>
-          <input
-            name="refNoAndDate"
-            value={formData.refNoAndDate}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Occupy Date</label>
-          <input
-            type="date"
-            name="occupyDate"
-            value={formData.occupyDate}
-            onChange={handleChange}
-          />
-          {errors.occupyDate && <span className="error">{errors.occupyDate}</span>}
-        </div>
-
-        <div className="form-group">
-          <label>EB Number</label>
-          <input
-            name="ebNo"
-            value={formData.ebNo}
-            onChange={handleChange}
-          />
-          {errors.ebNo && <span className="error">{errors.ebNo}</span>}
-          <p className="help-text">Must be unique</p>
-        </div>
-
-        <div className="form-group">
-          <label>Quarters Type <span className="required">*</span></label>
-          <select
-            name="quartersType"
-            value={formData.quartersType}
-            onChange={handleChange}
-          >
-            <option value="">Select quarters type</option>
-            <option value="A">A Type</option>
-            <option value="C">C Type</option>
-            <option value="D">D Type</option>
-          </select>
-          {errors.quartersType && <span className="error">{errors.quartersType}</span>}
-        </div>
-
-        <button className="primary" type="submit">
-          {quartersData ? "Update Quarters" : "Add Quarters"}
-        </button>
-        <button className="secondary" onClick={() => setEditingQuarters(null)}>
-          Cancel
-        </button>
-      </form>
-    </div>
-  );
 }
 
-function SpecialDetailsForm({
-  quartersData,
-  specialDetailsData,
-  filteredQuarters,
-  query,
-  setQuery,
-  updateSpecialDetailsHandler,
-  getSpecialDetailsByQuartersNo,
-  setUpdatingSpecialDetails,
-  updatingSpecialDetails,
-  notify,
-  addAudit,
-  quartersToUpdate
-}) {
-  const [formData, setFormData] = useState({
-    quartersNo: "",
-    specialNotes: "",
-    maintenanceIssues: "",
-    familyMembersCount: "",
-    vehicleNumber: "",
-    aadhaarNumber: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    residentStatus: "Active"
+function makeQuartersStats(residents, specialByQuarter) {
+  const counts = { A: 0, C: 0, D: 0 };
+  let vacated = 0;
+  residents.forEach((resident) => {
+    counts[resident.quartersType] += 1;
+    if ((specialByQuarter.get(resident.quartersNo)?.residentStatus || "Active") === "Vacated") vacated += 1;
   });
-
-  const [errors, setErrors] = useState({});
-
-  // If editing existing special details, populate form data
-  if (quartersToUpdate) {
-    const specialDetails = getSpecialDetailsByQuartersNo(quartersToUpdate);
-    setFormData(specialDetails);
-  }
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    // Clear error for this field when user types
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: "" }));
-    }
+  return {
+    total: residents.length,
+    occupied: residents.length - vacated,
+    vacant: vacated,
+    active: residents.length - vacated,
+    vacated,
+    counts
   };
+}
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    // Validation
-    const newErrors = {};
-
-    if (!formData.quartersNo) newErrors.quartersNo = "Quarters number is required";
-
-    if (formData.familyMembersCount && isNaN(parseInt(formData.familyMembersCount))) {
-      newErrors.familyMembersCount = "Family members count must be a number";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    updateSpecialDetailsHandler(formData);
-    setUpdatingSpecialDetails(null);
-  };
-
+function HostelDashboard({ stats, rooms, students, onAdd }) {
   return (
     <div className="screen">
-      <PanelHead
-        title={quartersToUpdate ? "Update Special Details" : "Special Details Management"}
-        action={<button className="primary" onClick={() => setUpdatingSpecialDetails(null)}><X size={18} /></button>}
-      />
-      {!quartersToUpdate && (
-        <div className="search-bar">
-          <Search size={18} />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search quarters no, name, designation..."
-          />
-          <button className="primary" onClick={() => setEditingQuarters(null)}>
-            <Plus size={16} /> Add Quarters
-          </button>
-        </div>
-      )}
-      <div className="form-grid">
-        {quartersToUpdate && (
-          <div className="form-group">
-            <label>Quarters No</label>
-            <input
-              name="quartersNo"
-              value={formData.quartersNo}
-              readOnly
-            />
-          </div>
-        )}
-        {!quartersToUpdate && (
-          <QuartersTableSelect
-            quartersData={quartersData}
-            specialDetailsData={specialDetailsData}
-            filteredQuarters={filteredQuarters}
-            query={query}
-            setQuery={setQuery}
-            onQuartersSelect={(quartersNo) => {
-              setFormData(prev => ({ ...prev, quartersNo }));
-              const specialDetails = getSpecialDetailsByQuartersNo(quartersNo);
-              setFormData(prev => ({
-                ...prev,
-                specialNotes: specialDetails.specialNotes,
-                maintenanceIssues: specialDetails.maintenanceIssues,
-                familyMembersCount: specialDetails.familyMembersCount.toString(),
-                vehicleNumber: specialDetails.vehicleNumber,
-                aadhaarNumber: specialDetails.aadhaarNumber,
-                emergencyContactName: specialDetails.emergencyContactName,
-                emergencyContactPhone: specialDetails.emergencyContactPhone,
-                residentStatus: specialDetails.residentStatus
-              }));
-            }}
-          />
-        )}
-
-        <div className="form-group">
-          <label>Special Notes</label>
-          <textarea
-            name="specialNotes"
-            value={formData.specialNotes}
-            onChange={handleChange}
-            rows={3}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Maintenance Issues</label>
-          <textarea
-            name="maintenanceIssues"
-            value={formData.maintenanceIssues}
-            onChange={handleChange}
-            rows={3}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Family Members Count</label>
-          <input
-            type="number"
-            name="familyMembersCount"
-            value={formData.familyMembersCount}
-            onChange={handleChange}
-          />
-          {errors.familyMembersCount && <span className="error">{errors.familyMembersCount}</span>}
-        </div>
-
-        <div className="form-group">
-          <label>Vehicle Number</label>
-          <input
-            name="vehicleNumber"
-            value={formData.vehicleNumber}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Aadhaar Number</label>
-          <input
-            name="aadhaarNumber"
-            value={formData.aadhaarNumber}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Emergency Contact Name</label>
-          <input
-            name="emergencyContactName"
-            value={formData.emergencyContactName}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Emergency Contact Phone</label>
-          <input
-            name="emergencyContactPhone"
-            value={formData.emergencyContactPhone}
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="form-group">
-          <label>Resident Status</label>
-          <select
-            name="residentStatus"
-            value={formData.residentStatus}
-            onChange={handleChange}
-          >
-            <option value="Active">Active</option>
-            <option value="Vacated">Vacated</option>
-            <option value="Transferred">Transferred</option>
-            <option value="On Leave">On Leave</option>
-          </select>
-        </div>
-
-        <button className="primary" type="submit">
-          {quartersToUpdate ? "Update Special Details" : "Save Special Details"}
-        </button>
-        <button className="secondary" onClick={() => setUpdatingSpecialDetails(null)}>
-          Cancel
-        </button>
+      <div className="command-strip"><div><p className="eyebrow">Hostel Management Module</p><h3>Accommodation and occupancy overview</h3></div><button className="primary" onClick={onAdd}><Plus size={16} /> Add Resident</button></div>
+      <div className="stat-grid">
+        <Stat icon={<BedDouble />} label="Total Rooms" value={stats.totalRooms} />
+        <Stat icon={<CheckCircle2 />} label="Occupied Rooms" value={stats.occupiedRooms} />
+        <Stat icon={<Home />} label="Vacant Rooms" value={stats.vacantRooms} />
+        <Stat icon={<Users />} label="Total Residents" value={stats.totalResidents} />
       </div>
+      <div className="panel-grid">
+        <ChartPanel title="Floor-wise Occupancy" data={stats.floorWise} dataKey="residents" />
+        <ChartPanel title="Hostel-wise Occupancy" data={stats.hostelWise} dataKey="residents" />
+        <section className="panel">
+          <PanelHead title="Gender-wise Statistics" />
+          <ResponsiveContainer width="100%" height={240}><PieChart><Pie data={stats.genderWise} dataKey="value" nameKey="name" outerRadius={84}>{stats.genderWise.map((_, index) => <Cell key={index} fill={["#0d8f8d", "#f59e0b"][index]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer>
+        </section>
+      </div>
+      <section className="panel"><PanelHead title="Recent Hostel Residents" /><HostelTable students={students.slice(0, 8)} /></section>
     </div>
   );
 }
 
-function QuartersTableSelect({
-  quartersData,
-  specialDetailsData,
-  filteredQuarters,
-  query,
-  setQuery,
-  onQuartersSelect
-}) {
-  const handleQuartersSelect = (quartersNo) => {
-    onQuartersSelect(quartersNo);
-  };
-
-  return (
-    <div className="form-group">
-      <label>Select Quarters</label>
-      <div className="quarters-select">
-        {filteredQuarters.map((quarters) => (
-          <div
-            key={quarters.quartersNo}
-            className="quarters-select-item"
-            onClick={() => handleQuartersSelect(quarters.quartersNo)}
-          >
-            <div className="quarters-info">
-              <strong>{quarters.quartersNo}</strong>
-              <span>{quarters.name}</span>
-            </div>
-            <div className="quarters-details">
-              <small>{quarters.designation}</small>
-              <br />
-              <small>{quarters.department}</small>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function QuartersTable({
-  quartersData,
-  specialDetailsData,
-  getSpecialDetailsByQuartersNo,
-  updateQuartersResident,
-  deleteQuartersResident,
-  updateSpecialDetailsHandler,
-  getStatusColor,
-  setEditingQuarters,
-  setViewingQuarters,
-  setUpdatingSpecialDetails
-}) {
-  if (quartersData.length === 0) {
-    return <div className="empty-state">
-      <Building2 size={48} />
-      <strong>No quarters data available</strong>
-      <p>Add quarters residents to get started</p>
-    </div>;
-  }
-
-  return (
-    <div className="table-responsive">
-      <table className="quarters-table">
-        <thead>
-          <tr>
-            <th>Quarters No</th>
-            <th>Name</th>
-            <th>Designation</th>
-            <th>Department</th>
-            <th>Phone No</th>
-            <th>IFHRMS No</th>
-            <th>Ref No & Date</th>
-            <th>Occupy Date</th>
-            <th>EB No</th>
-            <th>Quarters Type</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {quartersData.map((quarters) => {
-            const specialDetails = getSpecialDetailsByQuartersNo(quarters.quartersNo);
-            const statusColor = getStatusColor(specialDetails.residentStatus);
-
-            return (
-              <tr key={quarters.quartersNo}>
-                <td>{quarters.quartersNo}</td>
-                <td>{quarters.name}</td>
-                <td>{quarters.designation || "-"}</td>
-                <td>{quarters.department || "-"}</td>
-                <td>{quarters.phoneNo || "-"}</td>
-                <td>{quarters.ifhrmsNo || "-"}</td>
-                <td>{quarters.refNoAndDate || "-"}</td>
-                <td>{quarters.occupyDate || "-"}</td>
-                <td>{quarters.ebNo || "-"}</td>
-                <td>{quarters.quartersType}</td>
-                <td>
-                  <span className="status-badge" style={{ backgroundColor: statusColor }}>
-                    {specialDetails.residentStatus}
-                  </span>
-                </td>
-                <td className="actions-cell">
-                  <div className="action-buttons">
-                    <button
-                      className="btn-icon"
-                      onClick={() => {
-                        setEditingQuarters(quarters);
-                      }}
-                    >
-                      <Edit3 size={16} />
-                    </button>
-                    <button
-                      className="btn-icon"
-                      onClick={() => {
-                        setViewingQuarters(quarters.quartersNo);
-                      }}
-                    >
-                      <FileText size={16} />
-                    </button>
-                    <button
-                      className="btn-icon"
-                      onClick={() => {
-                        setUpdatingSpecialDetails(quarters.quartersNo);
-                      }}
-                    >
-                      <FileText size={16} />
-                    </button>
-                    <button
-                      className="btn-icon"
-                      onClick={() => {
-                        if (window.confirm(`Are you sure you want to delete quarters ${quarters.quartersNo}?`)) {
-                          deleteQuartersResident(quarters.quartersNo);
-                        }
-                      }}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function QuartersDetails({ quartersData, specialDetailsData, quartersNo }) {
-  const quarters = quartersData.find(q => q.quartersNo === quartersNo);
-  const specialDetails = specialDetailsData.find(sd => sd.quartersNo === quartersNo) || {
-    quartersNo,
-    specialNotes: "",
-    maintenanceIssues: "",
-    familyMembersCount: 0,
-    vehicleNumber: "",
-    aadhaarNumber: "",
-    emergencyContactName: "",
-    emergencyContactPhone: "",
-    residentStatus: "Active"
-  };
-
-  if (!quarters) {
-    return <div className="error-state">Quarters not found</div>;
-  }
-
-  const statusColors = {
-    Active: "#10b981",
-    Vacated: "#ef4444",
-    Transferred: "#f59e0b",
-    "On Leave": "#3b82f6"
-  };
-
-  return (
-    <div className="details-panel">
-      <div className="details-header">
-        <h2>Quarters Details: {quarters.quartersNo}</h2>
-        <span className="status-badge" style={{ backgroundColor: statusColors[specialDetails.residentStatus] }}>
-          {specialDetails.residentStatus}
-        </span>
-      </div>
-
-      <div className="details-section">
-        <h3>Basic Information</h3>
-        <div className="details-grid">
-          <div>
-            <p>Quarters No</p>
-            <p>{quarters.quartersNo}</p>
-          </div>
-          <div>
-            <p>Name</p>
-            <p>{quarters.name}</p>
-          </div>
-          <div>
-            <p>Designation</p>
-            <p>{quarters.designation || "-"}</p>
-          </div>
-          <div>
-            <p>Department</p>
-            <p>{quarters.department || "-"}</p>
-          </div>
-          <div>
-            <p>Phone No</p>
-            <p>{quarters.phoneNo || "-"}</p>
-          </div>
-          <div>
-            <p>IFHRMS No</p>
-            <p>{quarters.ifhrmsNo || "-"}</p>
-          </div>
-          <div>
-            <p>Ref No & Date</p>
-            <p>{quarters.refNoAndDate || "-"}</p>
-          </div>
-          <div>
-            <p>Occupy Date</p>
-            <p>{quarters.occupyDate || "-"}</p>
-          </div>
-          <div>
-            <p>EB No</p>
-            <p>{quarters.ebNo || "-"}</p>
-          </div>
-          <div>
-            <p>Quarters Type</p>
-            <p>{quarters.quartersType}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="details-section">
-        <h3>Special Details</h3>
-        <div className="details-grid">
-          <div>
-            <p>Special Notes</p>
-            <p>{specialDetails.specialNotes || "-"}</p>
-          </div>
-          <div>
-            <p>Maintenance Issues</p>
-            <p>{specialDetails.maintenanceIssues || "-"}</p>
-          </div>
-          <div>
-            <p>Family Members Count</p>
-            <p>{specialDetails.familyMembersCount}</p>
-          </div>
-          <div>
-            <p>Vehicle Number</p>
-            <p>{specialDetails.vehicleNumber || "-"}</p>
-          </div>
-          <div>
-            <p>Aadhaar Number</p>
-            <p>{specialDetails.aadhaarNumber || "-"}</p>
-          </div>
-          <div>
-            <p>Emergency Contact Name</p>
-            <p>{specialDetails.emergencyContactName || "-"}</p>
-          </div>
-          <div>
-            <p>Emergency Contact Phone</p>
-            <p>{specialDetails.emergencyContactPhone || "-"}</p>
-          </div>
-          <div>
-            <p>Resident Status</p>
-            <p>{specialDetails.residentStatus}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QuartersReports({ quartersData, specialDetailsData, filteredQuarters, notify, addAudit }) {
-  const statusCounts = {
-    Active: specialDetailsData.filter(sd => sd.resentStatus === "Active").length,
-    Vacated: specialDetailsData.filter(sd => sd.resentStatus === "Vacated").length,
-    Transferred: specialDetailsData.filter(sd => sd.resentStatus === "Transferred").length,
-    "On Leave": specialDetailsData.filter(sd => sd.resentStatus === "On Leave").length
-  };
-
-  const typeCounts = {
-    A: quartersData.filter(q => q.quartersType === "A").length,
-    C: quartersData.filter(q => q.quartersType === "C").length,
-    D: quartersData.filter(q => q.quartersType === "D").length
-  };
-
+function HostelRooms({ rooms }) {
   return (
     <div className="screen">
-      <PanelHead title="Quarters Reports" />
-      <div className="report-grid">
-        <div className="report-card">
-          <h3>Quarters by Type</h3>
-          <div className="report-stat">
-            <p>A-Type: {typeCounts.A}</p>
-            <p>C-Type: {typeCounts.C}</p>
-            <p>D-Type: {typeCounts.D}</p>
-          </div>
-        </div>
-
-        <div className="report-card">
-          <h3>Quarters by Status</h3>
-          <div className="report-stat">
-            <p>Active: {statusCounts.Active}</p>
-            <p>Vacated: {statusCounts.Vacated}</p>
-            <p>Transferred: {statusCounts.Transferred}</p>
-            <p>On Leave: {statusCounts["On Leave"]}</p>
-          </div>
-        </div>
-
-        <div className="report-card">
-          <h3>Occupancy Summary</h3>
-          <div className="report-stat">
-            <p>Total Quarters: {quartersData.length}</p>
-            <p>Occupied: {statusCounts.Active + statusCounts.Transferred + statusCounts["On Leave"]}</p>
-            <p>Vacant: {statusCounts.Vacated}</p>
-          </div>
-        </div>
-
-        <div className="report-card">
-          <h3>Recent Updates</h3>
-          <div className="report-stat">
-            <p>Last updated: {new Date().toLocaleString()}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="report-actions">
-        <button className="primary" onClick={() => {
-          // In a real app, this would generate a report
-          notify("Report generated successfully");
-          addAudit("Generated quarters report");
-        }}>
-          <ClipboardList size={16} /> Generate Report
-        </button>
-        <button className="secondary" onClick={() => {
-          notify("Data exported successfully");
-          addAudit("Exported quarters data");
-        }}>
-          <Download size={16} /> Export Data
-        </button>
+      <div className="room-grid">
+        {rooms.map((room) => {
+          const status = room.occupied === 0 ? "vacant" : room.vacancy === 0 ? "full" : "partial";
+          return (
+            <article className={`room-card ${status}`} key={room.id || room.roomNumber}>
+              <div><h3>{room.roomNumber}</h3><p>{room.hostelName} • {room.floor}</p></div>
+              <div className="room-meta"><span>{room.capacity} capacity</span><span>{room.occupied || 0} occupied</span><span>{room.vacancy} vacant</span></div>
+              {(room.students || []).map((student) => <p className="student-line" key={student.rollNumber}>{student.name} ({student.rollNumber})</p>)}
+            </article>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function AdminTools({ auditLogs, addAudit, notify, quartersData, specialDetailsData }) {
-  const totalQuarters = quartersData.length;
-  const occupiedQuarters = specialDetailsData.filter(sd => sd.residentStatus !== "Vacated").length;
-  const vacantQuarters = specialDetailsData.filter(sd => sd.residentStatus === "Vacated").length;
+function HostelResidents({ students, allStudents, rooms, filters, setFilters, pageState, setPageState, onAdd, onEdit, onVacate, onTransfer, onLetter }) {
+  const paged = paginate(students, pageState);
+  return (
+    <section className="screen">
+      <div className="command-strip"><PanelHead title="Hostel Residents" /><button className="primary" onClick={onAdd}><Plus size={16} /> Add Resident</button></div>
+      <HostelFilterPanel rows={allStudents} rooms={rooms} filters={filters} setFilters={(next) => { setFilters(next); setPageState({ ...pageState, page: 1 }); }} />
+      <HostelTable students={paged.rows} rooms={rooms} onEdit={onEdit} onVacate={onVacate} onTransfer={onTransfer} onLetter={onLetter} />
+      <Pagination total={students.length} pageState={pageState} setPageState={setPageState} />
+    </section>
+  );
+}
 
+function HostelTable({ students, onEdit, onVacate, onTransfer, onLetter }) {
+  return (
+    <div className="table-wrap"><table><thead><tr><th>Roll No</th><th>Name</th><th>Hostel</th><th>Room</th><th>Gender</th><th>Course/Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+      {students.map((student) => <tr key={student.rollNumber}><td>{student.rollNumber}</td><td>{student.name}</td><td>{student.hostelName}</td><td>{student.roomNumber}</td><td>{student.gender}</td><td>{student.courseYear}</td><td><Badge tone={student.status === "active" ? "ok" : "danger"}>{student.status}</Badge></td><td><div className="row-actions">{onEdit && <button className="mini" onClick={() => onEdit(student)}><Edit3 size={14} />Edit</button>}{onLetter && <button className="mini" onClick={() => onLetter(student)}><FileText size={14} />Letter</button>}{onTransfer && student.status === "active" && <button className="mini" onClick={() => onTransfer(student)}><BedDouble size={14} />Transfer</button>}{onVacate && student.status === "active" && <button className="mini" onClick={() => onVacate(student)}><UserMinus size={14} />Vacate</button>}</div></td></tr>)}
+      {!students.length && <tr><td colSpan="8">No hostel residents found.</td></tr>}
+    </tbody></table></div>
+  );
+}
+
+function QuartersDashboard({ stats, rows, onAdd }) {
   return (
     <div className="screen">
-      <PanelHead title="System Administration" />
-      <div className="admin-stats">
-        <div className="stat-card">
-          <h3>Quarters Statistics</h3>
-          <p>Total Quarters: {totalQuarters}</p>
-          <p>Occupied: {occupiedQuarters}</p>
-          <p>Vacant: {vacantQuarters}</p>
-        </div>
-
-        <div className="stat-card">
-          <h3>Data Management</h3>
-          <p>Last backup: {new Date().toLocaleString()}</p>
-          <p>Records: {quartersData.length} quarters, {specialDetailsData.length} special details</p>
-        </div>
+      <div className="command-strip"><div><p className="eyebrow">Quarters Management Module</p><h3>A, C and D type quarters analytics</h3></div><button className="primary" onClick={onAdd}><Plus size={16} /> Add New Resident</button></div>
+      <div className="stat-grid">
+        <Stat icon={<Building2 />} label="Total Quarters" value={stats.total} />
+        <Stat icon={<UserCircle />} label="Occupied Quarters" value={stats.occupied} />
+        <Stat icon={<Home />} label="Vacant Quarters" value={stats.vacant} />
+        <Stat icon={<CheckCircle2 />} label="Active Residents" value={stats.active} />
+        <Stat icon={<Layers3 />} label="A-Type Count" value={stats.counts.A} />
+        <Stat icon={<Layers3 />} label="C-Type Count" value={stats.counts.C} />
+        <Stat icon={<Layers3 />} label="D-Type Count" value={stats.counts.D} />
+        <Stat icon={<UserMinus />} label="Vacated Residents" value={stats.vacated} />
       </div>
+      <section className="panel"><PanelHead title="Quarters Snapshot" /><QuartersTable rows={rows.slice(0, 10)} specialByQuarter={new Map()} compact /></section>
+    </div>
+  );
+}
 
-      <div className="admin-actions">
-        <button className="primary" onClick={() => {
-          notify("Backup completed successfully");
-          addAudit("Performed system backup");
-        }}>
-          <Download size={16} /> Backup Data
-        </button>
+function QuartersResidents({ rows, allRows, specialByQuarter, filters, setFilters, pageState, setPageState, onAdd, onEdit, onSpecial, onDelete }) {
+  const paged = paginate(rows, pageState);
+  return (
+    <div className="screen">
+      <div className="command-strip"><PanelHead title="Quarters Residents" /><button className="primary" onClick={onAdd}><Plus size={16} /> Add New Resident</button></div>
+      <QuartersFilterPanel rows={allRows} specialByQuarter={specialByQuarter} filters={filters} setFilters={(next) => { setFilters(next); setPageState({ ...pageState, page: 1 }); }} />
+      <QuartersTable rows={paged.rows} specialByQuarter={specialByQuarter} onEdit={onEdit} onSpecial={onSpecial} onDelete={onDelete} />
+      <Pagination total={rows.length} pageState={pageState} setPageState={setPageState} />
+    </div>
+  );
+}
 
-        <button className="secondary" onClick={() => {
-          if (window.confirm("Are you sure you want to reset all data to initial state?")) {
-            // Reset to initial state would require reloading the page
-            notify("Please refresh the page to reset data");
-            addAudit("Requested data reset");
-          }
-        }}>
-          <RefreshCw size={16} /> Reset Data
-        </button>
+function QuartersTable({ rows, specialByQuarter, onEdit, onSpecial, onDelete, compact }) {
+  return (
+    <div className="table-wrap"><table><thead><tr><th>Quarters No</th><th>Name</th><th>Designation</th><th>Department</th><th>Phone</th><th>IFHRMS</th><th>EB No</th><th>Type</th><th>Status</th>{!compact && <th>Actions</th>}</tr></thead><tbody>
+      {rows.map((resident) => {
+        const special = specialByQuarter.get?.(resident.quartersNo) || { residentStatus: resident.residentStatus || "Active" };
+        return <tr key={resident.quartersNo}><td>{resident.quartersNo}</td><td>{resident.name}</td><td>{resident.designation || "-"}</td><td>{resident.department || "-"}</td><td>{resident.phoneNo || "-"}</td><td>{resident.ifhrmsNo || "-"}</td><td>{resident.ebNo || "-"}</td><td>{resident.quartersType}</td><td><Badge tone={special.residentStatus === "Vacated" ? "danger" : special.residentStatus === "On Leave" ? "warn" : "ok"}>{special.residentStatus}</Badge></td>{!compact && <td><div className="row-actions">{onEdit && <button className="mini" onClick={() => onEdit(resident)}><Edit3 size={14} />Edit</button>}{onSpecial && <button className="mini" onClick={() => onSpecial(resident)}><FileText size={14} />Update Special Details</button>}{onDelete && <button className="mini danger" onClick={() => onDelete(resident.quartersNo)}><X size={14} />Delete</button>}</div></td>}</tr>;
+      })}
+      {!rows.length && <tr><td colSpan={compact ? 9 : 10}>No quarters records found.</td></tr>}
+    </tbody></table></div>
+  );
+}
 
-        <button className="secondary" onClick={() => {
-          notify("System maintenance completed");
-          addAudit("Performed system maintenance");
-        }}>
-          <Settings size={16} /> System Maintenance
-        </button>
+function SpecialDetails({ rows, specialByQuarter, onSpecial }) {
+  return <section className="screen"><PanelHead title="Special Details" /><QuartersTable rows={rows} specialByQuarter={specialByQuarter} onSpecial={onSpecial} /></section>;
+}
+
+function HostelFilterPanel({ rows, rooms, filters, setFilters }) {
+  const roomByNo = new Map(rooms.map((room) => [room.roomNumber, room]));
+  const option = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const setMulti = (key, values) => setFilters({ ...filters, [key]: values });
+  return (
+    <section className="panel filter-panel">
+      <PanelHead title="Hostel Filters" action={<button className="secondary" onClick={() => setFilters({ hostelType: [], floor: [], roomNumber: [], occupancyStatus: [], department: [], academicYear: [], gender: [], vacatingStatus: [], sortBy: "name" })}><RotateCcw size={15} /> Reset</button>} />
+      <div className="filter-grid">
+        <MultiSelect label="Hostel Type" values={filters.hostelType} options={option(rows.map((item) => item.hostelName))} onChange={(values) => setMulti("hostelType", values)} />
+        <MultiSelect label="Floor" values={filters.floor} options={option(rows.map((item) => roomByNo.get(item.roomNumber)?.floor))} onChange={(values) => setMulti("floor", values)} />
+        <MultiSelect label="Room Number" values={filters.roomNumber} options={option(rows.map((item) => item.roomNumber))} onChange={(values) => setMulti("roomNumber", values)} />
+        <MultiSelect label="Occupancy Status" values={filters.occupancyStatus} options={["Vacant", "Partially Occupied", "Full"]} onChange={(values) => setMulti("occupancyStatus", values)} />
+        <MultiSelect label="Department" values={filters.department} options={option(rows.map((item) => item.department))} onChange={(values) => setMulti("department", values)} />
+        <MultiSelect label="Academic Year" values={filters.academicYear} options={option(rows.map((item) => item.courseYear))} onChange={(values) => setMulti("academicYear", values)} />
+        <MultiSelect label="Gender" values={filters.gender} options={["Male", "Female"]} onChange={(values) => setMulti("gender", values)} />
+        <MultiSelect label="Vacating Status" values={filters.vacatingStatus} options={["active", "vacated"]} onChange={(values) => setMulti("vacatingStatus", values)} />
+        <label>Sort By<select value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })}><option value="name">Name</option><option value="rollNumber">Roll Number</option><option value="roomNumber">Room Number</option><option value="courseYear">Academic Year</option></select></label>
       </div>
+    </section>
+  );
+}
 
-      <div className="audit-section">
-        <PanelHead title="Recent Audit Logs" />
-        <div className="audit-log">
-          {auditLogs.slice(0, 5).map((log, index) => (
-            <div key={index} className="audit-log-entry">
-              <ShieldCheck size={16} />
-              <span>{log}</span>
-            </div>
-          ))}
-        </div>
+function QuartersFilterPanel({ rows, specialByQuarter, filters, setFilters }) {
+  const option = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  const setMulti = (key, values) => setFilters({ ...filters, [key]: values });
+  return (
+    <section className="panel filter-panel">
+      <PanelHead title="Quarters Filters" action={<button className="secondary" onClick={() => setFilters({ quartersType: [], residentStatus: [], department: [], designation: [], occupancy: [], vehicleNumber: [], ifhrmsNo: [], sortBy: "quartersNo" })}><RotateCcw size={15} /> Reset</button>} />
+      <div className="filter-grid">
+        <MultiSelect label="Quarters Type" values={filters.quartersType} options={quartersTypes} onChange={(values) => setMulti("quartersType", values)} />
+        <MultiSelect label="Resident Status" values={filters.residentStatus} options={residentStatuses} onChange={(values) => setMulti("residentStatus", values)} />
+        <MultiSelect label="Department" values={filters.department} options={option(rows.map((item) => item.department))} onChange={(values) => setMulti("department", values)} />
+        <MultiSelect label="Designation" values={filters.designation} options={option(rows.map((item) => item.designation))} onChange={(values) => setMulti("designation", values)} />
+        <MultiSelect label="Occupancy Status" values={filters.occupancy} options={["Occupied", "Vacant"]} onChange={(values) => setMulti("occupancy", values)} />
+        <MultiSelect label="Vehicle Number" values={filters.vehicleNumber} options={option(rows.map((item) => specialByQuarter.get(item.quartersNo)?.vehicleNumber))} onChange={(values) => setMulti("vehicleNumber", values)} />
+        <MultiSelect label="IFHRMS Number" values={filters.ifhrmsNo} options={option(rows.map((item) => item.ifhrmsNo))} onChange={(values) => setMulti("ifhrmsNo", values)} />
+        <label>Sort By<select value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })}><option value="quartersNo">Quarters No</option><option value="name">Name</option><option value="department">Department</option><option value="designation">Designation</option></select></label>
+      </div>
+    </section>
+  );
+}
+
+function MultiSelect({ label, values, options, onChange }) {
+  return (
+    <label>{label}
+      <select multiple value={values} onChange={(event) => onChange([...event.target.selectedOptions].map((option) => option.value))}>
+        {options.map((item) => <option key={item} value={item}>{item}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function Pagination({ total, pageState, setPageState }) {
+  const pages = Math.max(1, Math.ceil(total / pageState.size));
+  const page = Math.min(pageState.page, pages);
+  return (
+    <div className="pagination">
+      <span>{total} records</span>
+      <button className="mini" disabled={page <= 1} onClick={() => setPageState({ ...pageState, page: page - 1 })}>Previous</button>
+      <strong>Page {page} of {pages}</strong>
+      <button className="mini" disabled={page >= pages} onClick={() => setPageState({ ...pageState, page: page + 1 })}>Next</button>
+      <select value={pageState.size} onChange={(event) => setPageState({ page: 1, size: Number(event.target.value) })}>{pageSizes.map((size) => <option key={size} value={size}>{size} / page</option>)}</select>
+    </div>
+  );
+}
+
+function LetterGenerator({ students, quartersResidents, specialByQuarter, onPreview, notify }) {
+  return (
+    <div className="screen">
+      <div className="command-strip"><div><p className="eyebrow">PDF Letter Workspace</p><h3>Vacating and appointment letters</h3></div></div>
+      <div className="panel-grid report-grid">
+        <section className="panel">
+          <PanelHead title="Vacating Letter Generator" />
+          <VacatingLetterForm students={students} onPreview={onPreview} />
+        </section>
+        <section className="panel">
+          <PanelHead title="Appointment Letter Generator" />
+          <AppointmentLetterForm students={students} quartersResidents={quartersResidents} specialByQuarter={specialByQuarter} onPreview={onPreview} notify={notify} />
+        </section>
       </div>
     </div>
   );
+}
+
+function VacatingLetterForm({ student, students = [], onPreview }) {
+  const [selected, setSelected] = useState(student?.rollNumber || "");
+  const resident = student || students.find((item) => item.rollNumber === selected) || students[0];
+  const [form, setForm] = useState({ vacatingDate: today, reason: "Personal reasons", remarks: "" });
+  function submit(event) {
+    event.preventDefault();
+    if (!resident) return;
+    onPreview(makeVacatingLetter(resident, form));
+  }
+  return (
+    <form className="form-grid" onSubmit={submit}>
+      {!student && <label className="span-2">Select Hostel Resident<select value={selected} onChange={(event) => setSelected(event.target.value)}>{students.map((item) => <option key={item.rollNumber} value={item.rollNumber}>{item.name} - {item.roomNumber}</option>)}</select></label>}
+      {resident && <div className="notice span-2"><strong>{resident.name}</strong> • {resident.hostelName} • {resident.roomNumber} • {resident.courseYear || "-"}</div>}
+      {field("Vacating Date", "vacatingDate", form, setForm, true, false, "date")}
+      {field("Reason for Vacating", "reason", form, setForm, true)}
+      <label className="span-2">Additional Remarks<textarea value={form.remarks} onChange={(event) => setForm({ ...form, remarks: event.target.value })} /></label>
+      <button className="primary span-2" type="submit"><Eye size={16} /> Preview Letter</button>
+    </form>
+  );
+}
+
+function AppointmentLetterForm({ students, quartersResidents, onPreview }) {
+  const [scope, setScope] = useState("hostel");
+  const [selected, setSelected] = useState("");
+  const [manual, setManual] = useState({ name: "", designation: "Hostel Staff", department: "", roomNumber: "", occupancyDate: today });
+  const [terms, setTerms] = useState("The allottee shall maintain the premises responsibly, follow institution rules, and vacate or transfer accommodation when instructed by the competent authority.");
+  const records = scope === "quarters" ? quartersResidents : students;
+  const record = records.find((item) => (scope === "quarters" ? item.quartersNo : item.rollNumber) === selected) || records[0];
+  function submit(event) {
+    event.preventDefault();
+    const payload = scope === "staff" ? manual : record;
+    if (!payload) return;
+    onPreview(makeAppointmentLetter(scope, payload, terms));
+  }
+  return (
+    <form className="form-grid" onSubmit={submit}>
+      <label>Applicable For<select value={scope} onChange={(event) => setScope(event.target.value)}><option value="hostel">Hostel Resident</option><option value="quarters">Quarters Resident</option><option value="staff">Hostel Staff</option></select></label>
+      {scope !== "staff" && <label>Select Record<select value={selected} onChange={(event) => setSelected(event.target.value)}>{records.map((item) => <option key={scope === "quarters" ? item.quartersNo : item.rollNumber} value={scope === "quarters" ? item.quartersNo : item.rollNumber}>{item.name} - {scope === "quarters" ? item.quartersNo : item.roomNumber}</option>)}</select></label>}
+      {scope === "staff" && <>{field("Name", "name", manual, setManual, true)}{field("Designation", "designation", manual, setManual, true)}{field("Department", "department", manual, setManual)}{field("Room/Office No", "roomNumber", manual, setManual)}{field("Occupancy Date", "occupancyDate", manual, setManual, true, false, "date")}</>}
+      {scope !== "staff" && record && <div className="notice span-2"><strong>{record.name}</strong> • {scope === "quarters" ? `${record.quartersNo} (${record.quartersType}-Type)` : `${record.hostelName} ${record.roomNumber}`}</div>}
+      <label className="span-2">Instructions / Terms<textarea value={terms} onChange={(event) => setTerms(event.target.value)} /></label>
+      <button className="primary span-2" type="submit"><Eye size={16} /> Preview Appointment Letter</button>
+    </form>
+  );
+}
+
+function LetterPreview({ letter }) {
+  return (
+    <div className="letter-preview-shell">
+      <div className="button-row">
+        <button className="primary" onClick={() => downloadPdf(letter)}><Download size={16} /> Download PDF</button>
+        <button className="secondary" onClick={() => printLetter(letter)}><Printer size={16} /> Print</button>
+      </div>
+      <article className="letter-preview">
+        <header><strong>Government Namakkal Medical College & Hospital</strong><span>Hostel & Quarters Administration</span></header>
+        <p className="letter-date">Date: {formatDate(letter.date)}</p>
+        <h2>{letter.title}</h2>
+        {letter.sections.map((section) => <section key={section.heading}><h3>{section.heading}</h3>{section.lines.map((line, index) => <p key={index}>{line}</p>)}</section>)}
+        <div className="signature-grid"><span>Resident / Student Signature</span><span>Warden / Administrative Officer</span><span>Approval Authority</span></div>
+      </article>
+    </div>
+  );
+}
+
+function ExcelExports({ students, allStudents, rooms, hostels, quartersRows, allQuarters, specialByQuarter, notify }) {
+  const hostelReports = [
+    ["All Residents Report", hostelResidentRows(students)],
+    ["Room Occupancy Report", roomRows(rooms)],
+    ["Vacant Rooms Report", roomRows(rooms.filter((room) => room.occupied === 0))],
+    ["Hostel-wise Report", hostels.map((hostel) => ({ Hostel: hostel.name, Rooms: rooms.filter((room) => room.hostelName === hostel.name).length, Residents: rooms.filter((room) => room.hostelName === hostel.name).reduce((sum, room) => sum + Number(room.occupied || 0), 0) }))],
+    ["Floor-wise Report", floorRows(rooms)],
+    ["Student Details Report", hostelResidentRows(allStudents)],
+    ["Vacating Students Report", hostelResidentRows(allStudents.filter((student) => student.status === "vacated"))]
+  ];
+  const quartersReports = [
+    ["All Quarters Residents", quartersExportRows(quartersRows, specialByQuarter)],
+    ["A-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "A"), specialByQuarter)],
+    ["C-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "C"), specialByQuarter)],
+    ["D-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "D"), specialByQuarter)],
+    ["Vacant Quarters Report", quartersExportRows(quartersRows.filter((item) => (specialByQuarter.get(item.quartersNo)?.residentStatus || "Active") === "Vacated"), specialByQuarter)],
+    ["Occupied Quarters Report", quartersExportRows(quartersRows.filter((item) => (specialByQuarter.get(item.quartersNo)?.residentStatus || "Active") !== "Vacated"), specialByQuarter)],
+    ["Resident Status Report", quartersExportRows(allQuarters, specialByQuarter)]
+  ];
+  const exportFile = (title, rows) => {
+    downloadXlsx(`${slug(title)}.xlsx`, title, rows);
+    notify(`${title} exported`);
+  };
+  return (
+    <div className="screen">
+      <div className="command-strip"><div><p className="eyebrow">Excel Export Workspace</p><h3>Hostel and quarters .xlsx reports</h3></div></div>
+      <div className="panel-grid report-grid">
+        <ExportPanel title="Hostel Excel Reports" reports={hostelReports} onExport={exportFile} />
+        <ExportPanel title="Quarters Excel Reports" reports={quartersReports} onExport={exportFile} />
+      </div>
+    </div>
+  );
+}
+
+function ExportPanel({ title, reports, onExport }) {
+  return <section className="panel export-panel"><PanelHead title={title} /><div className="export-list">{reports.map(([name, rows]) => <button key={name} className="export-button" onClick={() => onExport(name, rows)}><FileSpreadsheet size={18} /><span>{name}</span><small>{rows.length} rows</small></button>)}</div></section>;
+}
+
+function HostelResidentForm({ student, rooms, hostels, onSubmit }) {
+  const [form, setForm] = useState({ ...emptyHostelResident, ...(student || {}) });
+  const availableRooms = rooms.filter((room) => room.vacancy > 0 || room.roomNumber === student?.roomNumber);
+  function submit(event) {
+    event.preventDefault();
+    onSubmit(form, student?.rollNumber);
+  }
+  return <form className="form-grid" onSubmit={submit}>{field("Roll Number", "rollNumber", form, setForm, true, Boolean(student))}{field("Name", "name", form, setForm, true)}{select("Gender", "gender", ["Male", "Female"], form, setForm)}{select("Hostel", "hostelName", hostels.map((item) => item.name), form, setForm)}{select("Room", "roomNumber", availableRooms.map((item) => item.roomNumber), form, setForm)}{field("Course / Year", "courseYear", form, setForm)}{field("Joining Date", "joiningDate", form, setForm, true, false, "date")}{field("Contact", "contact", form, setForm)}{field("Parent Name", "parentName", form, setForm)}{field("Parent Contact", "parentContact", form, setForm)}<button className="primary span-2" type="submit">Save Resident</button></form>;
+}
+
+function VacateForm({ student, onSubmit }) {
+  const [form, setForm] = useState({ vacatingDate: today, vacatingReason: "" });
+  return <form className="form-grid" onSubmit={(event) => { event.preventDefault(); onSubmit(student, form); }}><p className="notice span-2">Vacating {student.name} from {student.roomNumber}</p>{field("Vacating Date", "vacatingDate", form, setForm, true, false, "date")}{field("Reason", "vacatingReason", form, setForm)}<button className="primary span-2" type="submit">Vacate Room</button></form>;
+}
+
+function TransferForm({ student, rooms, onSubmit }) {
+  const [form, setForm] = useState({ roomNumber: "", hostelName: student.hostelName });
+  const availableRooms = rooms.filter((room) => room.vacancy > 0 && room.roomNumber !== student.roomNumber);
+  return <form className="form-grid" onSubmit={(event) => { event.preventDefault(); onSubmit(student, form); }}>{select("New Room", "roomNumber", availableRooms.map((item) => item.roomNumber), form, setForm)}<button className="primary span-2" type="submit">Transfer Resident</button></form>;
+}
+
+function QuarterForm({ resident, existing, onSubmit }) {
+  const [form, setForm] = useState({ ...emptyQuarter, ...(resident || {}) });
+  const [error, setError] = useState("");
+  function submit(event) {
+    event.preventDefault();
+    const normalizedNo = form.quartersNo.trim().toUpperCase();
+    const ebNo = form.ebNo.trim();
+    if (!normalizedNo || !form.name.trim() || !quartersTypes.includes(form.quartersType)) return setError("Quarters No, Name, and Quarters Type are required.");
+    if (form.phoneNo && !/^\d{10}$/.test(form.phoneNo)) return setError("Phone number must contain exactly 10 digits.");
+    if (existing.some((item) => item.quartersNo === normalizedNo && item.quartersNo !== resident?.quartersNo)) return setError("Quarters No must be unique.");
+    if (ebNo && existing.some((item) => item.ebNo === ebNo && item.quartersNo !== resident?.quartersNo)) return setError("EB No must be unique.");
+    onSubmit({ ...form, quartersNo: normalizedNo, ebNo }, resident?.quartersNo);
+  }
+  return <form className="form-grid" onSubmit={submit}>{error && <p className="notice span-2">{error}</p>}{field("Quarters No", "quartersNo", form, setForm, true)}{field("Name", "name", form, setForm, true)}{field("Designation", "designation", form, setForm)}{field("Department", "department", form, setForm)}{field("Phone Number", "phoneNo", form, setForm)}{field("IFHRMS Number", "ifhrmsNo", form, setForm)}{field("Ref No & Date", "refNoAndDate", form, setForm)}{field("Occupy Date", "occupyDate", form, setForm, false, false, "date")}{field("EB Number", "ebNo", form, setForm)}{select("Quarters Type", "quartersType", quartersTypes, form, setForm)}<button className="primary span-2" type="submit">Save Quarters Resident</button></form>;
+}
+
+function SpecialForm({ resident, special, onSubmit }) {
+  const [form, setForm] = useState({ ...emptySpecial, ...(special || {}), quartersNo: resident.quartersNo });
+  return <form className="form-grid" onSubmit={(event) => { event.preventDefault(); onSubmit(form); }}><div className="notice span-2"><strong>{resident.quartersNo}</strong> • {resident.name} • {resident.designation || "-"} • {resident.department || "-"}</div><label className="span-2">Special Notes<textarea value={form.specialNotes} onChange={(e) => setForm({ ...form, specialNotes: e.target.value })} /></label><label className="span-2">Maintenance Issues<textarea value={form.maintenanceIssues} onChange={(e) => setForm({ ...form, maintenanceIssues: e.target.value })} /></label>{field("Family Members Count", "familyMembersCount", form, setForm, false, false, "number")}{field("Vehicle Number", "vehicleNumber", form, setForm)}{field("Aadhaar Number", "aadhaarNumber", form, setForm)}{field("Emergency Contact Name", "emergencyContactName", form, setForm)}{field("Emergency Contact Phone", "emergencyContactPhone", form, setForm)}{select("Resident Status", "residentStatus", residentStatuses, form, setForm)}<button className="primary span-2" type="submit">Update Special Details</button></form>;
+}
+
+function paginate(rows, { page, size }) {
+  const safePage = Math.max(1, page);
+  const start = (safePage - 1) * size;
+  return { rows: rows.slice(start, start + size), page: safePage };
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function makeVacatingLetter(student, form) {
+  return {
+    type: "vacating",
+    title: "Hostel Vacating Letter",
+    date: today,
+    fileName: `vacating-letter-${student.rollNumber || student.name}`,
+    sections: [
+      { heading: "Student Details", lines: [
+        `Student Name: ${student.name}`,
+        `Room Number: ${student.roomNumber || "-"}`,
+        `Hostel Name: ${student.hostelName || "-"}`,
+        `Department: ${student.department || "-"}`,
+        `Course / Year: ${student.courseYear || "-"}`,
+        `Admission Date: ${formatDate(student.joiningDate)}`,
+        `Vacating Date: ${formatDate(form.vacatingDate)}`
+      ] },
+      { heading: "Declaration", lines: [
+        `This is to certify that ${student.name} has requested to vacate the hostel accommodation allotted at ${student.roomNumber || "-"}, ${student.hostelName || "-"}.`,
+        `Reason for vacating: ${form.reason || "-"}`,
+        `Additional remarks: ${form.remarks || "-"}`
+      ] },
+      { heading: "Approval", lines: [
+        "The request may be approved after verifying room handover, pending dues, keys, hostel property, and required clearance records."
+      ] }
+    ]
+  };
+}
+
+function makeAppointmentLetter(scope, record, terms) {
+  const isQuarter = scope === "quarters";
+  const isStaff = scope === "staff";
+  const name = record.name || "-";
+  return {
+    type: "appointment",
+    title: isQuarter ? "Quarters Allocation / Appointment Letter" : "Hostel Allocation / Appointment Letter",
+    date: today,
+    fileName: `appointment-letter-${isQuarter ? record.quartersNo : record.rollNumber || name}`,
+    sections: [
+      { heading: "Allottee Details", lines: [
+        `Name: ${name}`,
+        `Designation: ${record.designation || (isStaff ? "Hostel Staff" : "Resident / Student")}`,
+        `Department: ${record.department || "-"}`,
+        `Room / Quarters Number: ${isQuarter ? record.quartersNo : record.roomNumber || "-"}`,
+        `Hostel / Quarters Type: ${isQuarter ? `${record.quartersType}-Type Quarters` : record.hostelName || "Hostel"}`,
+        `Occupancy Date: ${formatDate(record.occupyDate || record.occupancyDate || record.joiningDate || today)}`
+      ] },
+      { heading: "Appointment / Allocation", lines: [
+        `The above-named person is allotted the accommodation mentioned above subject to institutional rules and administrative approval.`
+      ] },
+      { heading: "Instructions / Terms", lines: [terms || "-"] }
+    ]
+  };
+}
+
+function downloadPdf(letter) {
+  const doc = buildPdf(letter);
+  doc.save(`${slug(letter.fileName)}.pdf`);
+}
+
+function buildPdf(letter) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 54;
+  let y = 54;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("Government Namakkal Medical College & Hospital", margin, y);
+  y += 20;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text("Hostel & Quarters Administration", margin, y);
+  y += 28;
+  doc.setDrawColor(13, 143, 141);
+  doc.line(margin, y, 540, y);
+  y += 28;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(letter.title, margin, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Date: ${formatDate(letter.date)}`, 430, y);
+  y += 28;
+  for (const section of letter.sections) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.text(section.heading, margin, y);
+    y += 18;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    for (const line of section.lines) {
+      const split = doc.splitTextToSize(line, 486);
+      doc.text(split, margin, y);
+      y += split.length * 14 + 6;
+      if (y > 720) {
+        doc.addPage();
+        y = 54;
+      }
+    }
+    y += 8;
+  }
+  y = Math.max(y + 20, 640);
+  doc.setFont("helvetica", "normal");
+  doc.text("Resident / Student Signature", margin, y);
+  doc.text("Warden / Administrative Officer", 220, y);
+  doc.text("Approval Authority", 420, y);
+  doc.line(margin, y - 14, 180, y - 14);
+  doc.line(220, y - 14, 380, y - 14);
+  doc.line(420, y - 14, 540, y - 14);
+  return doc;
+}
+
+function printLetter(letter) {
+  const doc = buildPdf(letter);
+  const url = doc.output("bloburl");
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function hostelResidentRows(rows) {
+  return rows.map((student) => ({
+    "Roll Number": student.rollNumber,
+    Name: student.name,
+    Hostel: student.hostelName,
+    Room: student.roomNumber,
+    Gender: student.gender,
+    Department: student.department || "",
+    "Academic Year": student.courseYear || "",
+    "Admission Date": formatDate(student.joiningDate),
+    Contact: student.contact || "",
+    Status: student.status || "active",
+    "Vacating Date": formatDate(student.vacatingDate)
+  }));
+}
+
+function roomRows(rows) {
+  return rows.map((room) => ({
+    Hostel: room.hostelName,
+    Floor: room.floor,
+    Room: room.roomNumber,
+    Capacity: room.capacity,
+    Occupied: room.occupied || 0,
+    Vacancy: room.vacancy || 0,
+    Status: room.occupied === 0 ? "Vacant" : room.vacancy === 0 ? "Full" : "Partially Occupied"
+  }));
+}
+
+function floorRows(rooms) {
+  return Object.values(rooms.reduce((acc, room) => {
+    const key = `${room.hostelName} - ${room.floor}`;
+    acc[key] ||= { Hostel: room.hostelName, Floor: room.floor, Rooms: 0, Occupied: 0, Vacancy: 0 };
+    acc[key].Rooms += 1;
+    acc[key].Occupied += Number(room.occupied || 0);
+    acc[key].Vacancy += Number(room.vacancy || 0);
+    return acc;
+  }, {}));
+}
+
+function quartersExportRows(rows, specialByQuarter) {
+  return rows.map((resident) => {
+    const special = specialByQuarter.get(resident.quartersNo) || emptySpecial;
+    return {
+      "Quarters No": resident.quartersNo,
+      Name: resident.name,
+      Designation: resident.designation || "",
+      Department: resident.department || "",
+      Phone: resident.phoneNo || "",
+      IFHRMS: resident.ifhrmsNo || "",
+      "EB No": resident.ebNo || "",
+      Type: resident.quartersType,
+      "Occupy Date": formatDate(resident.occupyDate),
+      Status: special.residentStatus || "Active",
+      "Vehicle Number": special.vehicleNumber || "",
+      "Family Members": special.familyMembersCount || 0
+    };
+  });
+}
+
+function downloadXlsx(fileName, sheetName, rows) {
+  const headers = rows.length ? Object.keys(rows[0]) : ["No Data"];
+  const dataRows = rows.length ? rows : [{ "No Data": "No matching records" }];
+  const sheetXml = worksheetXml(headers, dataRows);
+  const files = {
+    "[Content_Types].xml": `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+    "_rels/.rels": `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEscape(sheetName.slice(0, 31))}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+    "xl/worksheets/sheet1.xml": sheetXml
+  };
+  const blob = new Blob([zipStore(files)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  downloadBlob(fileName, blob);
+}
+
+function worksheetXml(headers, rows) {
+  const rowXml = [headers, ...rows.map((row) => headers.map((header) => row[header] ?? ""))].map((cells, rowIndex) => `<row r="${rowIndex + 1}">${cells.map((value, colIndex) => `<c r="${columnName(colIndex + 1)}${rowIndex + 1}" t="inlineStr"><is><t>${xmlEscape(String(value))}</t></is></c>`).join("")}</row>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowXml}</sheetData></worksheet>`;
+}
+
+function columnName(index) {
+  let name = "";
+  while (index > 0) {
+    const mod = (index - 1) % 26;
+    name = String.fromCharCode(65 + mod) + name;
+    index = Math.floor((index - mod) / 26);
+  }
+  return name;
+}
+
+function zipStore(files) {
+  const encoder = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  for (const [name, content] of Object.entries(files)) {
+    const nameBytes = encoder.encode(name);
+    const data = encoder.encode(content);
+    const crc = crc32(data);
+    const local = zipHeader(0x04034b50, nameBytes, data, crc);
+    chunks.push(local, nameBytes, data);
+    central.push({ nameBytes, data, crc, offset });
+    offset += local.length + nameBytes.length + data.length;
+  }
+  let centralSize = 0;
+  const centralChunks = central.map((entry) => {
+    const header = zipHeader(0x02014b50, entry.nameBytes, entry.data, entry.crc, entry.offset);
+    centralSize += header.length + entry.nameBytes.length;
+    return [header, entry.nameBytes];
+  }).flat();
+  const end = new Uint8Array(22);
+  const view = new DataView(end.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(8, central.length, true);
+  view.setUint16(10, central.length, true);
+  view.setUint32(12, centralSize, true);
+  view.setUint32(16, offset, true);
+  return new Blob([...chunks, ...centralChunks, end]);
+}
+
+function zipHeader(signature, nameBytes, data, crc, centralOffset = 0) {
+  const isCentral = signature === 0x02014b50;
+  const header = new Uint8Array(isCentral ? 46 : 30);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, signature, true);
+  if (isCentral) {
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 20, true);
+    view.setUint32(16, crc, true);
+    view.setUint32(20, data.length, true);
+    view.setUint32(24, data.length, true);
+    view.setUint16(28, nameBytes.length, true);
+    view.setUint32(42, centralOffset, true);
+  } else {
+    view.setUint16(4, 20, true);
+    view.setUint32(14, crc, true);
+    view.setUint32(18, data.length, true);
+    view.setUint32(22, data.length, true);
+    view.setUint16(26, nameBytes.length, true);
+  }
+  return header;
+}
+
+function crc32(data) {
+  let crc = -1;
+  for (let index = 0; index < data.length; index += 1) {
+    crc = (crc >>> 8) ^ crcTable[(crc ^ data[index]) & 0xff];
+  }
+  return (crc ^ -1) >>> 0;
+}
+
+const crcTable = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function xmlEscape(value) {
+  return value.replace(/[<>&'"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", "\"": "&quot;" }[char]));
+}
+
+function slug(value) {
+  return String(value || "export").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function downloadBlob(fileName, blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function field(label, key, form, setForm, required = false, disabled = false, type = "text") {
+  return <label>{label}<input type={type} value={form[key] || ""} required={required} disabled={disabled} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></label>;
+}
+
+function select(label, key, options, form, setForm) {
+  return <label>{label}<select value={form[key] || ""} onChange={(e) => setForm({ ...form, [key]: e.target.value })}><option value="">Select</option>{options.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>;
+}
+
+function ChartPanel({ title, data, dataKey }) {
+  return <section className="panel"><PanelHead title={title} /><ResponsiveContainer width="100%" height={240}><BarChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis allowDecimals={false} /><Tooltip /><Bar dataKey={dataKey} fill="#0d8f8d" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></section>;
+}
+
+function Stat({ icon, label, value }) {
+  return <article className="stat-card"><span>{React.cloneElement(icon, { size: 21 })}</span><p>{label}</p><strong>{value || 0}</strong></article>;
+}
+
+function Badge({ tone, children }) {
+  return <span className={`status-badge ${tone}`}>{children}</span>;
 }
 
 function Modal({ title, onClose, children }) {
-  return (
-    <div className="modal-backdrop">
-      <section className="modal">
-        <PanelHead title={title} action={<button className="icon-button" onClick={onClose}><X size={18} /></button>} />
-        {children}
-      </section>
-    </div>
-  );
+  return <div className="modal-backdrop"><section className="modal"><PanelHead title={title} action={<button className="icon-button" onClick={onClose}><X size={18} /></button>} />{children}</section></div>;
 }
 
 function PanelHead({ title, action }) {
-  return (
-    <div className="panel-head">
-      <h3>{title}</h3>
-      {action}
-    </div>
-  );
+  return <div className="panel-head"><h3>{title}</h3>{action}</div>;
 }
 
 function LogoMark() {
   return <div className="logo-mark"><Stethoscope size={24} /></div>;
 }
 
-// Refresh icon for reset button
-function RefreshCw() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4v5h5M4 4a9 9 0 0 1 9 9"></path>
-    </svg>
-  );
-}
+createRoot(document.getElementById("root")).render(<App />);
