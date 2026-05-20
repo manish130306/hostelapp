@@ -127,6 +127,7 @@ const auditSchema = new mongoose.Schema({
 const quartersResidentSchema = new mongoose.Schema({
   quartersNo: { type: String, unique: true, required: true },
   name: { type: String, required: true },
+  entryDate: String,
   designation: String,
   department: String,
   phoneNo: { type: String, maxlength: 10, set: emptyToUndefined },
@@ -137,18 +138,6 @@ const quartersResidentSchema = new mongoose.Schema({
   quartersType: { type: String, enum: ['A', 'C', 'D'], required: true }
 }, { timestamps: true });
 
-const quartersSpecialDetailsSchema = new mongoose.Schema({
-  quartersNo: { type: String, unique: true },
-  specialNotes: String,
-  maintenanceIssues: String,
-  familyMembersCount: Number,
-  vehicleNumber: String,
-  aadhaarNumber: String,
-  emergencyContactName: String,
-  emergencyContactPhone: String,
-  residentStatus: { type: String, enum: ['Active', 'Vacated', 'Transferred', 'On Leave'], default: 'Active' }
-}, { timestamps: true });
-
 const Models = {
   Hostel: mongoose.model("Hostel", hostelsSchema),
   Room: mongoose.model("Room", roomSchema),
@@ -156,8 +145,7 @@ const Models = {
   History: mongoose.model("AdmissionVacation", historySchema),
   AdminUser: mongoose.model("AdminUser", adminSchema),
   AuditLog: mongoose.model("AuditLog", auditSchema),
-  QuartersResident: mongoose.model("QuartersResident", quartersResidentSchema),
-  QuartersSpecialDetail: mongoose.model("QuartersSpecialDetail", quartersSpecialDetailsSchema)
+  QuartersResident: mongoose.model("QuartersResident", quartersResidentSchema)
 };
 
 function emptyToUndefined(value) {
@@ -196,12 +184,31 @@ function parseQuartersSeedFromSql() {
   const sql = readFileSync(sqlPath, "utf8");
   const rows = [];
   const insertBlocks = sql.match(/INSERT INTO quarters_residents[\s\S]*?;/g) || [];
+  const columnMap = {
+    quarters_no: "quartersNo",
+    name: "name",
+    entry_date: "entryDate",
+    designation: "designation",
+    department: "department",
+    phone_no: "phoneNo",
+    ifhrms_no: "ifhrmsNo",
+    ref_no_and_date: "refNoAndDate",
+    occupy_date: "occupyDate",
+    eb_no: "ebNo",
+    quarters_type: "quartersType"
+  };
   for (const block of insertBlocks) {
+    const columns = block.slice(block.indexOf("(") + 1, block.indexOf(")")).split(",").map((column) => column.trim());
     const valuesPart = block.slice(block.indexOf("VALUES") + 6, -1);
     const tuples = valuesPart.match(/\([\s\S]*?\)(?=,|\s*$)/g) || [];
     for (const tuple of tuples) {
-      const [quartersNo, name, designation, department, phoneNo, ifhrmsNo, refNoAndDate, occupyDate, ebNo, quartersType] = parseSqlValues(tuple.slice(1, -1));
-      rows.push({ quartersNo, name, designation, department, phoneNo, ifhrmsNo, refNoAndDate, occupyDate, ebNo, quartersType });
+      const values = parseSqlValues(tuple.slice(1, -1));
+      const row = {};
+      columns.forEach((column, index) => {
+        const key = columnMap[column];
+        if (key) row[key] = values[index];
+      });
+      rows.push(row);
     }
   }
   return rows;
@@ -215,7 +222,6 @@ const memory = {
   students: sampleStudents,
   history: [],
   quartersResidents: quartersSeed,
-  quartersSpecialDetails: quartersSeed.map((resident) => ({ quartersNo: resident.quartersNo, residentStatus: "Active", familyMembersCount: 0 })),
   auditLogs: [{ id: 1, action: "System initialized with hostel structure and quarters records", actor: "System", time: new Date().toISOString() }]
 };
 
@@ -244,79 +250,14 @@ async function seedMongo() {
   const adminCount = await Models.AdminUser.countDocuments();
   if (!adminCount) await Models.AdminUser.create({ username: ADMIN_USER, passwordHash: ADMIN_PASSWORD_HASH, role: "admin" });
 
-  // Initialize quarters data with exact values from the SQL
-  const quartersCount = await Models.QuartersResident.countDocuments();
-  if (quartersCount === 0) {
-    // Insert the exact data from the SQL file
-    await Models.QuartersResident.insertMany([
-      // C Type Quarters (C1 to C18)
-      { quartersNo: "C1", name: "Dr.V. Balaji", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C2", name: "Dr.V. Slimbarasan", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C3", name: "Dr.S.K. Jayaswarya", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C4", name: "Dr.A. Marudhavanan", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C5", name: "Dr.S. Balasubramanian", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C6", name: "Dr.T. Karthikeyan", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C7", name: "Dr.A.Mary Arul priya", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C8", name: "Dr.A.Daivik", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C9", name: "Dr.P.Gomathi", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C10", name: "Dr.M.Srimuthalage", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C11", name: "Dr.K.Shankar", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C12", name: "Dr.S.Jeyakumar", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C13", name: "Dr.P. Tamilarsi", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C14", name: "Dr.M. Sathish", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C15", name: "Dr.L.Mohanapriya", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C16", name: "Dr.S. Mukilan", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C17", name: "Dr.S. Vigneshwari", designation: "Doctor", department: "Medicine", quartersType: "C" },
-      { quartersNo: "C18", name: "Dr.A.Gayatri", designation: "Doctor", department: "Medicine", quartersType: "C" },
-
-      // A Type Quarters (A1 to A36) - With exact data from SQL
-      { quartersNo: "A1", name: "P.R.ARVIND", designation: "Junior Assistant", department: "College", phoneNo: "8056123012", ifhrmsNo: "19031159364", refNoAndDate: "012/P&D/2022 &14.02.2022", occupyDate: "2022-02-15", ebNo: "203-006-919", quartersType: "A" },
-      { quartersNo: "A2", name: "M.DEEPA", designation: "Assitant", department: "College", phoneNo: "9629133444", ifhrmsNo: "19030866491", refNoAndDate: "012/P&D/2022 &31.01.2022", occupyDate: null, ebNo: "203-006-920", quartersType: "A" },
-      { quartersNo: "A3", name: "B.MENAKA", designation: "Assitant", department: "College", phoneNo: "8675572755", ifhrmsNo: "19030537473", refNoAndDate: "012/P&D/2022 &01.02.2022", occupyDate: "2022-02-01", ebNo: "203-006-921", quartersType: "A" },
-      { quartersNo: "A4", name: "S.SHANKAR", designation: "Junior Assistant", department: "Hospital", phoneNo: "9965148617", ifhrmsNo: null, refNoAndDate: "3980/P&D-3/2023 & 01.11.2023", occupyDate: "2023-12-01", ebNo: "203-006-922", quartersType: "A" },
-      { quartersNo: "A5", name: "A.THIYARAJAN", designation: "Plaster Technician", department: "Hospital", phoneNo: "9487486642", ifhrmsNo: null, refNoAndDate: "2956/P&D/2023 &06.01.2025", occupyDate: null, ebNo: "203-006-923", quartersType: "A" },
-      { quartersNo: "A6", name: "M.BALAMURGAN", designation: "Magnetic Resonance Tomography", department: "Hospital", phoneNo: "8428324363", ifhrmsNo: null, refNoAndDate: "1402/P&D4/2023 & 28.04.2023", occupyDate: "2023-05-01", ebNo: "203-006-924", quartersType: "A" },
-      { quartersNo: "A7", name: "M.KUMAR", designation: "Dark Room Assistant", department: "Hospital", phoneNo: "9976463732", ifhrmsNo: null, refNoAndDate: "2126/P&D-5/2023 & 04.12.2023", occupyDate: "2023-12-04", ebNo: "203-006-925", quartersType: "A" },
-      { quartersNo: "A8", name: "M.MUTHU KRISHAN", designation: "Junior Assistant", department: "Hospital", phoneNo: "6379114265", ifhrmsNo: null, refNoAndDate: "3508/P&D3/2025 &24.09.2025", occupyDate: "2025-09-24", ebNo: "203-006-926", quartersType: "A" },
-      { quartersNo: "A9", name: "M.SETTU", designation: "Assitant", department: "College", phoneNo: "8110802547", ifhrmsNo: "19030928352", refNoAndDate: "012/P&D/2022 &17.01.2022", occupyDate: "2022-01-17", ebNo: "203-006-927", quartersType: "A" },
-      { quartersNo: "A10", name: "M.MUTHAMIZH", designation: "Junior Assistant", department: "College", phoneNo: "9092939360", ifhrmsNo: "19031164787", refNoAndDate: "012/P&D/2022 &17.01.2022", occupyDate: "2022-01-17", ebNo: "203-006-928", quartersType: "A" },
-      { quartersNo: "A11", name: "P.BOOBALAN", designation: "Hospital Worker", department: "Hospital", phoneNo: "9944860339", ifhrmsNo: null, refNoAndDate: "012/P&D/2022 &31.01.2022", occupyDate: "2022-02-01", ebNo: "203-006-929", quartersType: "A" },
-      { quartersNo: "A12", name: "G.SURESH", designation: "Junior Assistant", department: "College", phoneNo: "9789663966", ifhrmsNo: "19031164700", refNoAndDate: "012/P&D/2022 &31.01.2022", occupyDate: null, ebNo: "203-006-930", quartersType: "A" },
-      { quartersNo: "A13", name: "S.KALA", designation: "Junior Assistant", department: "College", phoneNo: "9486136535", ifhrmsNo: "19030503197", refNoAndDate: "13103/P&D/2022 &17.06.2022", occupyDate: "2022-06-14", ebNo: "203-006-931", quartersType: "A" },
-      { quartersNo: "A14", name: "P.SAKUNTHALA", designation: "Junior Assistant", department: "College", phoneNo: "6374436290", ifhrmsNo: "19030503071", refNoAndDate: "13104/P&D/2022 &14.06.2022", occupyDate: "2022-06-14", ebNo: "203-006-932", quartersType: "A" },
-      { quartersNo: "A15", name: "A.GEETHA", designation: "Steno Typist", department: "College", phoneNo: "8825471804", ifhrmsNo: "19030532255", refNoAndDate: "012/P&D/2022 &31.01.2022", occupyDate: "2022-02-01", ebNo: "203-006-933", quartersType: "A" },
-      { quartersNo: "A16", name: "D.SATHIS KUMAR", designation: "Junior Assistant", department: "Hospital", phoneNo: "7530018833", ifhrmsNo: null, refNoAndDate: "012/P&D/2022 &31.01.2022", occupyDate: "2022-02-01", ebNo: "203-006-934", quartersType: "A" },
-      { quartersNo: "A17", name: "R.A,LASKSHMI DEVI", designation: "Junior Assistant", department: "College", phoneNo: "9025791513", ifhrmsNo: "19031248269", refNoAndDate: "3685/P&D3/2025 &30.10.2025", occupyDate: "2025-11-01", ebNo: "203-006-935", quartersType: "A" },
-      { quartersNo: "A18", name: "R.PALANIAMMAL", designation: "Record Clerk", department: "College", phoneNo: "9042479295", ifhrmsNo: "19030732300", refNoAndDate: "924/P&D/2/2023 & 16.03.2023", occupyDate: "2023-03-16", ebNo: "203-006-936", quartersType: "A" },
-      { quartersNo: "A19", name: "S.SAMUNDESWARI", designation: "Junior Assistant", department: "College", phoneNo: "8675536090", ifhrmsNo: "19030506434", refNoAndDate: "1320/P&D/2022 &30.06.2022", occupyDate: "2022-07-01", ebNo: "203-006-937", quartersType: "A" },
-      { quartersNo: "A20", name: "K.REVATHI", designation: "Record Clerk", department: "College", phoneNo: "9865250520", ifhrmsNo: "19031062703", refNoAndDate: "864/P&D2/2023 729.03.2023", occupyDate: "2023-04-01", ebNo: "203-006-938", quartersType: "A" },
-      { quartersNo: "A21", name: "M.RADHAMANI", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A22", name: "A.ARUNSHANKAR", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A23", name: "P.ANANDHAN", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A24", name: "S.KOKILA", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A25", name: "N.PACHAMUTHU", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A26", name: "S.GUGANATHAN", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A27", name: "S.UMAMAHESWARI", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A28", name: "S.STELLARUBI", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A29", name: "S.SUBHA", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A30", name: "S.RAMESH", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A31", name: "S.SOMALATHA", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A32", name: "M.KALAIVANI", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A33", name: "R.PUSPAM", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A34", name: "R.SEVI", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A35", name: "M.PUSPHASHERILI", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-      { quartersNo: "A36", name: "S.VASANTHA", designation: "", department: "", phoneNo: "", ifhrmsNo: "", refNoAndDate: "", occupyDate: null, ebNo: "", quartersType: "A" },
-
-      // D Type Quarters (D1 to D8) - With exact data from SQL
-      { quartersNo: "D1", name: "Dr.M. Dhanasekaran", designation: "Associate Professor", department: "Pharmacology", phoneNo: "9840612986", ifhrmsNo: "19030460640", refNoAndDate: "012/P&D/2022 & 17.01.2022", occupyDate: "2022-01-17", ebNo: "203-006-909", quartersType: "D" },
-      { quartersNo: "D2", name: "Dr.R. Gunasekaran", designation: "Medical Superintendent", department: "Emergency Medicine", phoneNo: "9488573642", ifhrmsNo: "19030575560", refNoAndDate: "306/P&D/2022 &15.02.2022", occupyDate: "2022-02-15", ebNo: "203-006-910", quartersType: "D" },
-      { quartersNo: "D3", name: "Dr.S.Dhanalakshmi", designation: "Associate Professor", department: "Community Medicine", phoneNo: "9003058296", ifhrmsNo: "19030498864", refNoAndDate: "1198/P&D-1/2025 & 01.04.2025", occupyDate: "2025-03-01", ebNo: "203-006-911", quartersType: "D" },
-      { quartersNo: "D4", name: "Dr.P.Arul", designation: "Associate Professor", department: "General Medicine", phoneNo: "6380139951", ifhrmsNo: "19030402373", refNoAndDate: "5032/P&D/2024 &26.10.2024", occupyDate: "2024-11-01", ebNo: "203-006-912", quartersType: "D" },
-      { quartersNo: "D5", name: "Dr.P. Saravanan", designation: "Professor", department: "Pharmacology", phoneNo: "8838561198", ifhrmsNo: "19030512930", refNoAndDate: "959/P&D/4/2023 &29.03.2023", occupyDate: "2023-04-01", ebNo: "203-006-913", quartersType: "D" },
-      { quartersNo: "D6", name: "Dr.A.Leena Devi", designation: "Professor", department: "Biochemistry", phoneNo: "8525052300", ifhrmsNo: "19030730961", refNoAndDate: "5096/P&D/2024 &21.11.2024", occupyDate: "2024-12-01", ebNo: "203-006-914", quartersType: "D" },
-      { quartersNo: "D7", name: "Dr.M.Sumathi", designation: "Professor", department: "Pathology", phoneNo: "9843060785", ifhrmsNo: "19020701305", refNoAndDate: "1134/P&D-5/2024 &05.03.2024", occupyDate: "2024-03-04", ebNo: "203-006-915", quartersType: "D" },
-      { quartersNo: "D8", name: "Dr.M.Duraimurgan", designation: "Professor", department: "Community Medicine", phoneNo: "9894133089", ifhrmsNo: "19030417948", refNoAndDate: "5121/P&D/2024 &21.11.2024", occupyDate: "2024-12-01", ebNo: "203-006-916", quartersType: "D" }
-    ]);
+  if (quartersSeed.length) {
+    await Models.QuartersResident.bulkWrite(quartersSeed.map((resident) => ({
+      updateOne: {
+        filter: { quartersNo: resident.quartersNo },
+        update: { $set: resident },
+        upsert: true
+      }
+    })));
   }
 
   await logAudit("MongoDB seed verified", "System");
@@ -345,16 +286,15 @@ async function logAudit(action, actor = "admin", metadata = {}) {
 
 async function loadState() {
   if (!mongoReady) return memory;
-  const [hostels, rooms, students, history, auditLogs, quartersResidents, quartersSpecialDetails] = await Promise.all([
+  const [hostels, rooms, students, history, auditLogs, quartersResidents] = await Promise.all([
     Models.Hostel.find().lean(),
     Models.Room.find().lean(),
     Models.Student.find().lean(),
     Models.History.find().sort({ createdAt: -1 }).lean(),
     Models.AuditLog.find().sort({ createdAt: -1 }).limit(100).lean(),
-    Models.QuartersResident.find().lean(),
-    Models.QuartersSpecialDetail.find().lean()
+    Models.QuartersResident.find().lean()
   ]);
-  return { hostels, rooms, students, history, auditLogs, quartersResidents, quartersSpecialDetails };
+  return { hostels, rooms, students, history, auditLogs, quartersResidents };
 }
 
 function enrichRooms(rooms, students) {
@@ -404,6 +344,7 @@ function normalizeQuartersPayload(body = {}) {
   return {
     quartersNo: String(body.quartersNo || "").trim().toUpperCase(),
     name: String(body.name || "").trim(),
+    entryDate: body.entryDate || undefined,
     designation: body.designation ? String(body.designation).trim() : undefined,
     department: body.department ? String(body.department).trim() : undefined,
     phoneNo: body.phoneNo ? String(body.phoneNo).trim() : undefined,
@@ -425,20 +366,6 @@ function validateQuartersPayload(payload, existing = [], currentQuartersNo = "")
   if (existing.some((item) => item.quartersNo === payload.quartersNo && item.quartersNo !== currentQuartersNo)) errors.push("Quarters No must be unique");
   if (payload.ebNo && existing.some((item) => item.ebNo === payload.ebNo && item.quartersNo !== currentQuartersNo)) errors.push("EB No must be unique");
   return errors;
-}
-
-function normalizeSpecialDetailsPayload(body = {}) {
-  return {
-    quartersNo: String(body.quartersNo || "").trim().toUpperCase(),
-    specialNotes: body.specialNotes ? String(body.specialNotes).trim() : "",
-    maintenanceIssues: body.maintenanceIssues ? String(body.maintenanceIssues).trim() : "",
-    familyMembersCount: Number.parseInt(body.familyMembersCount, 10) || 0,
-    vehicleNumber: body.vehicleNumber ? String(body.vehicleNumber).trim() : "",
-    aadhaarNumber: body.aadhaarNumber ? String(body.aadhaarNumber).trim() : "",
-    emergencyContactName: body.emergencyContactName ? String(body.emergencyContactName).trim() : "",
-    emergencyContactPhone: body.emergencyContactPhone ? String(body.emergencyContactPhone).trim() : "",
-    residentStatus: body.residentStatus || "Active"
-  };
 }
 
 app.post("/api/auth/login", async (req, res) => {
@@ -497,10 +424,7 @@ app.post("/api/quarters", authenticate, async (req, res) => {
   const errors = validateQuartersPayload(payload, state.quartersResidents);
   if (errors.length) return res.status(400).json({ message: errors[0], errors });
   if (mongoReady) await Models.QuartersResident.create(payload);
-  else {
-    memory.quartersResidents.push(payload);
-    memory.quartersSpecialDetails.push({ quartersNo: payload.quartersNo, residentStatus: "Active", familyMembersCount: 0 });
-  }
+  else memory.quartersResidents.push(payload);
   await logAudit(`Quarters resident ${payload.quartersNo} added`, req.admin.username, payload);
   res.status(201).json(payload);
 });
@@ -514,16 +438,12 @@ app.put("/api/quarters/:quartersNo", authenticate, async (req, res) => {
   if (mongoReady) {
     const updated = await Models.QuartersResident.findOneAndUpdate({ quartersNo }, payload, { new: true }).lean();
     if (!updated) return res.status(404).json({ message: "Quarters not found" });
-    if (payload.quartersNo !== quartersNo) await Models.QuartersSpecialDetail.updateOne({ quartersNo }, { quartersNo: payload.quartersNo });
     await logAudit(`Quarters resident ${quartersNo} updated`, req.admin.username, payload);
     res.json(updated);
   } else {
     const index = memory.quartersResidents.findIndex(item => item.quartersNo === quartersNo);
     if (index === -1) return res.status(404).json({ message: "Quarters not found" });
     memory.quartersResidents[index] = { ...memory.quartersResidents[index], ...payload };
-    if (payload.quartersNo !== quartersNo) {
-      memory.quartersSpecialDetails = memory.quartersSpecialDetails.map((item) => item.quartersNo === quartersNo ? { ...item, quartersNo: payload.quartersNo } : item);
-    }
     await logAudit(`Quarters resident ${quartersNo} updated`, req.admin.username, payload);
     res.json(memory.quartersResidents[index]);
   }
@@ -541,68 +461,6 @@ app.delete("/api/quarters/:quartersNo", authenticate, async (req, res) => {
     if (index === -1) return res.status(404).json({ message: "Quarters not found" });
     const deleted = memory.quartersResidents.splice(index, 1)[0];
     await logAudit(`Quarters resident ${quartersNo} deleted`, req.admin.username, { quartersNo });
-    res.json({ deleted: true });
-  }
-});
-
-app.get("/api/quarters/special-details", authenticate, async (_req, res) => {
-  const state = await loadState();
-  res.json(state.quartersSpecialDetails);
-});
-
-app.post("/api/quarters/special-details", authenticate, async (req, res) => {
-  const payload = normalizeSpecialDetailsPayload(req.body);
-  const state = await loadState();
-  if (!state.quartersResidents.some((item) => item.quartersNo === payload.quartersNo)) return res.status(404).json({ message: "Quarters resident not found" });
-  if (!["Active", "Vacated", "Transferred", "On Leave"].includes(payload.residentStatus)) return res.status(400).json({ message: "Invalid resident status" });
-  if (mongoReady) {
-    await Models.QuartersSpecialDetail.findOneAndUpdate({ quartersNo: payload.quartersNo }, payload, { new: true, upsert: true });
-  } else {
-    const index = memory.quartersSpecialDetails.findIndex((item) => item.quartersNo === payload.quartersNo);
-    if (index === -1) memory.quartersSpecialDetails.push(payload);
-    else memory.quartersSpecialDetails[index] = { ...memory.quartersSpecialDetails[index], ...payload };
-  }
-  await logAudit(`Quarters special details for ${payload.quartersNo} added`, req.admin.username, payload);
-  res.status(201).json(payload);
-});
-
-app.put("/api/quarters/special-details/:quartersNo", authenticate, async (req, res) => {
-  const quartersNo = req.params.quartersNo.toUpperCase();
-  const payload = normalizeSpecialDetailsPayload({ ...req.body, quartersNo });
-  if (!["Active", "Vacated", "Transferred", "On Leave"].includes(payload.residentStatus)) return res.status(400).json({ message: "Invalid resident status" });
-  if (mongoReady) {
-    const updated = await Models.QuartersSpecialDetail.findOneAndUpdate({ quartersNo }, payload, { new: true, upsert: true }).lean();
-    await logAudit(`Quarters special details for ${quartersNo} updated`, req.admin.username, payload);
-    res.json(updated);
-  } else {
-    const index = memory.quartersSpecialDetails.findIndex(item => item.quartersNo === quartersNo);
-    if (index === -1) memory.quartersSpecialDetails.push(payload);
-    else memory.quartersSpecialDetails[index] = { ...memory.quartersSpecialDetails[index], ...payload };
-    await logAudit(`Quarters special details for ${quartersNo} updated`, req.admin.username, payload);
-    res.json(index === -1 ? payload : memory.quartersSpecialDetails[index]);
-  }
-});
-
-app.delete("/api/quarters/special-details/:quartersNo", authenticate, async (req, res) => {
-  const { quartersNo } = req.params;
-  if (mongoReady) {
-    const deleted = await Models.QuartersSpecialDetail.findOneAndDelete({ quartersNo });
-    if (!deleted) {
-      return res.status(404).json({
-        message: "Quarters special details not found"
-      });
-    }
-    await logAudit(`Quarters special details for ${quartersNo} deleted`, req.admin.username, { quartersNo });
-    res.json({ deleted: true });
-  } else {
-    const index = memory.quartersSpecialDetails.findIndex(item => item.quartersNo === quartersNo);
-    if (index === -1) {
-      return res.status(404).json({
-        message: "Quarters special details not found"
-      });
-    }
-    const deleted = memory.quartersSpecialDetails.splice(index, 1)[0];
-    await logAudit(`Quarters special details for ${quartersNo} deleted`, req.admin.username, { quartersNo });
     res.json({ deleted: true });
   }
 });

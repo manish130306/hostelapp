@@ -16,7 +16,6 @@ import "./styles.css";
 const API = "/api";
 const today = new Date().toISOString().slice(0, 10);
 const quartersTypes = ["A", "C", "D"];
-const residentStatuses = ["Active", "Vacated", "Transferred", "On Leave"];
 const pageSizes = [10, 25, 50];
 const emptyHostelResident = {
   rollNumber: "",
@@ -33,6 +32,7 @@ const emptyHostelResident = {
 const emptyQuarter = {
   quartersNo: "",
   name: "",
+  entryDate: "",
   designation: "",
   department: "",
   phoneNo: "",
@@ -42,18 +42,6 @@ const emptyQuarter = {
   ebNo: "",
   quartersType: "A"
 };
-const emptySpecial = {
-  quartersNo: "",
-  specialNotes: "",
-  maintenanceIssues: "",
-  familyMembersCount: 0,
-  vehicleNumber: "",
-  aadhaarNumber: "",
-  emergencyContactName: "",
-  emergencyContactPhone: "",
-  residentStatus: "Active"
-};
-
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem("nmc_admin_token") || "");
   const [dark, setDark] = useState(() => localStorage.getItem("nmc_theme") === "dark");
@@ -63,7 +51,7 @@ function App() {
     hostelType: [], floor: [], roomNumber: [], occupancyStatus: [], department: [], academicYear: [], gender: [], vacatingStatus: [], sortBy: "name"
   });
   const [quartersFilters, setQuartersFilters] = useState({
-    quartersType: [], residentStatus: [], department: [], designation: [], occupancy: [], vehicleNumber: [], ifhrmsNo: [], sortBy: "quartersNo"
+    quartersType: [], department: [], designation: [], occupancy: [], ifhrmsNo: [], sortBy: "quartersNo"
   });
   const [hostelPage, setHostelPage] = useState({ page: 1, size: 10 });
   const [quartersPage, setQuartersPage] = useState({ page: 1, size: 10 });
@@ -74,7 +62,6 @@ function App() {
     history: [],
     auditLogs: [],
     quartersResidents: [],
-    quartersSpecialDetails: [],
     dashboard: {}
   });
   const [loading, setLoading] = useState(false);
@@ -112,7 +99,6 @@ function App() {
         history: data.history || [],
         auditLogs: data.auditLogs || [],
         quartersResidents: data.quartersResidents || [],
-        quartersSpecialDetails: data.quartersSpecialDetails || [],
         dashboard: data.dashboard || {}
       });
     } catch (error) {
@@ -219,42 +205,23 @@ function App() {
     }
   }
 
-  async function saveSpecialDetails(payload) {
-    try {
-      await request(`/quarters/special-details/${encodeURIComponent(payload.quartersNo)}`, { method: "PUT", body: JSON.stringify(payload) });
-      setModal(null);
-      notify("Special details updated");
-      await loadBootstrap();
-    } catch (error) {
-      notify(error.message);
-    }
-  }
-
-  const specialByQuarter = useMemo(() => {
-    return new Map(state.quartersSpecialDetails.map((item) => [item.quartersNo, { ...emptySpecial, ...item }]));
-  }, [state.quartersSpecialDetails]);
-
   const quartersRows = useMemo(() => {
     const term = query.toLowerCase();
     const includes = (values, value) => !values.length || values.includes(value || "");
     return state.quartersResidents.filter((resident) => {
-      const special = specialByQuarter.get(resident.quartersNo) || { ...emptySpecial, quartersNo: resident.quartersNo };
       const haystack = [
         resident.name, resident.quartersNo, resident.ifhrmsNo, resident.phoneNo,
-        special.vehicleNumber, resident.department, resident.designation
+        resident.department, resident.designation, resident.ebNo, resident.refNoAndDate, resident.entryDate
       ].join(" ").toLowerCase();
-      const status = special.residentStatus || "Active";
-      const occupied = status !== "Vacated";
+      const occupied = Boolean(resident.name);
       return (!term || haystack.includes(term)) &&
         includes(quartersFilters.quartersType, resident.quartersType) &&
         includes(quartersFilters.department, resident.department) &&
         includes(quartersFilters.designation, resident.designation) &&
-        includes(quartersFilters.residentStatus, status) &&
-        includes(quartersFilters.vehicleNumber, special.vehicleNumber) &&
         includes(quartersFilters.ifhrmsNo, resident.ifhrmsNo) &&
         (!quartersFilters.occupancy.length || quartersFilters.occupancy.includes(occupied ? "Occupied" : "Vacant"));
     }).sort((a, b) => String(a[quartersFilters.sortBy] || "").localeCompare(String(b[quartersFilters.sortBy] || ""), undefined, { numeric: true }));
-  }, [state.quartersResidents, specialByQuarter, query, quartersFilters]);
+  }, [state.quartersResidents, query, quartersFilters]);
 
   const hostelResidents = useMemo(() => {
     const term = query.toLowerCase();
@@ -275,7 +242,7 @@ function App() {
   }, [state.students, state.rooms, query, hostelFilters]);
 
   const hostelStats = useMemo(() => makeHostelStats(state.hostels, state.rooms, state.students), [state.hostels, state.rooms, state.students]);
-  const quartersStats = useMemo(() => makeQuartersStats(state.quartersResidents, specialByQuarter), [state.quartersResidents, specialByQuarter]);
+  const quartersStats = useMemo(() => makeQuartersStats(state.quartersResidents), [state.quartersResidents]);
 
   if (!authed) {
     return (
@@ -307,7 +274,6 @@ function App() {
     ["Hostel Residents", Users],
     ["Quarters Dashboard", Building2],
     ["Quarters Residents", UserCircle],
-    ["Special Details", FileText],
     ["Letters", FileText],
     ["Excel Exports", FileSpreadsheet]
   ];
@@ -334,16 +300,15 @@ function App() {
         {active === "Hostel Rooms" && <HostelRooms rooms={state.rooms} hostels={state.hostels} onTransfer={(room) => setModal({ type: "transfer-room", room })} />}
         {active === "Hostel Residents" && <HostelResidents students={hostelResidents} allStudents={state.students} rooms={state.rooms} filters={hostelFilters} setFilters={setHostelFilters} pageState={hostelPage} setPageState={setHostelPage} onAdd={() => setModal({ type: "hostel-form" })} onEdit={(student) => setModal({ type: "hostel-form", student })} onVacate={(student) => setModal({ type: "vacate", student })} onTransfer={(student) => setModal({ type: "transfer", student })} onLetter={(student) => setModal({ type: "vacating-letter", student })} />}
         {active === "Quarters Dashboard" && <QuartersDashboard stats={quartersStats} rows={quartersRows} onAdd={() => setModal({ type: "quarter-form" })} />}
-        {active === "Quarters Residents" && <QuartersResidents rows={quartersRows} allRows={state.quartersResidents} specialByQuarter={specialByQuarter} filters={quartersFilters} setFilters={setQuartersFilters} pageState={quartersPage} setPageState={setQuartersPage} onAdd={() => setModal({ type: "quarter-form" })} onEdit={(resident) => setModal({ type: "quarter-form", resident })} onSpecial={(resident) => setModal({ type: "special-form", resident })} onDelete={deleteQuarter} />}
-        {active === "Special Details" && <SpecialDetails rows={quartersRows} specialByQuarter={specialByQuarter} onSpecial={(resident) => setModal({ type: "special-form", resident })} />}
-        {active === "Letters" && <LetterGenerator students={state.students} quartersResidents={state.quartersResidents} specialByQuarter={specialByQuarter} onPreview={(letter) => setModal({ type: "letter-preview", letter })} notify={notify} />}
-        {active === "Excel Exports" && <ExcelExports students={hostelResidents} allStudents={state.students} rooms={state.rooms} hostels={state.hostels} quartersRows={quartersRows} allQuarters={state.quartersResidents} specialByQuarter={specialByQuarter} notify={notify} />}
+        {active === "Quarters Residents" && <QuartersResidents rows={quartersRows} allRows={state.quartersResidents} filters={quartersFilters} setFilters={setQuartersFilters} pageState={quartersPage} setPageState={setQuartersPage} onAdd={() => setModal({ type: "quarter-form" })} onEdit={(resident) => setModal({ type: "quarter-form", resident })} onView={(resident) => setModal({ type: "quarter-details", resident })} onDelete={deleteQuarter} />}
+        {active === "Letters" && <LetterGenerator students={state.students} quartersResidents={state.quartersResidents} onPreview={(letter) => setModal({ type: "letter-preview", letter })} notify={notify} />}
+        {active === "Excel Exports" && <ExcelExports students={hostelResidents} allStudents={state.students} rooms={state.rooms} hostels={state.hostels} quartersRows={quartersRows} allQuarters={state.quartersResidents} notify={notify} />}
 
         {modal?.type === "hostel-form" && <Modal title={modal.student ? "Edit Hostel Resident" : "Add Hostel Resident"} onClose={() => setModal(null)}><HostelResidentForm student={modal.student} rooms={state.rooms} hostels={state.hostels} onSubmit={saveHostelResident} /></Modal>}
         {modal?.type === "vacate" && <Modal title="Vacate Room" onClose={() => setModal(null)}><VacateForm student={modal.student} onSubmit={vacateResident} /></Modal>}
         {modal?.type === "transfer" && <Modal title="Transfer Resident" onClose={() => setModal(null)}><TransferForm student={modal.student} rooms={state.rooms} onSubmit={transferResident} /></Modal>}
         {modal?.type === "quarter-form" && <Modal title={modal.resident ? "Edit Quarters Resident" : "Add New Resident"} onClose={() => setModal(null)}><QuarterForm resident={modal.resident} existing={state.quartersResidents} onSubmit={saveQuarter} /></Modal>}
-        {modal?.type === "special-form" && <Modal title="Update Special Details" onClose={() => setModal(null)}><SpecialForm resident={modal.resident} special={specialByQuarter.get(modal.resident.quartersNo)} onSubmit={saveSpecialDetails} /></Modal>}
+        {modal?.type === "quarter-details" && <Modal title="Quarters Details" onClose={() => setModal(null)}><QuartersDetails resident={modal.resident} /></Modal>}
         {modal?.type === "vacating-letter" && <Modal title="Vacating Letter Generator" onClose={() => setModal(null)}><VacatingLetterForm student={modal.student} onPreview={(letter) => setModal({ type: "letter-preview", letter })} /></Modal>}
         {modal?.type === "letter-preview" && <Modal title="Letter Preview" onClose={() => setModal(null)}><LetterPreview letter={modal.letter} /></Modal>}
         {toast && <div className="toast">{toast}</div>}
@@ -381,19 +346,19 @@ function makeHostelStats(hostels, rooms, students) {
   };
 }
 
-function makeQuartersStats(residents, specialByQuarter) {
+function makeQuartersStats(residents) {
   const counts = { A: 0, C: 0, D: 0 };
-  let vacated = 0;
+  let vacant = 0;
   residents.forEach((resident) => {
     counts[resident.quartersType] += 1;
-    if ((specialByQuarter.get(resident.quartersNo)?.residentStatus || "Active") === "Vacated") vacated += 1;
+    if (!resident.name) vacant += 1;
   });
   return {
     total: residents.length,
-    occupied: residents.length - vacated,
-    vacant: vacated,
-    active: residents.length - vacated,
-    vacated,
+    occupied: residents.length - vacant,
+    vacant,
+    active: residents.length - vacant,
+    vacated: vacant,
     counts
   };
 }
@@ -473,39 +438,51 @@ function QuartersDashboard({ stats, rows, onAdd }) {
         <Stat icon={<Layers3 />} label="A-Type Count" value={stats.counts.A} />
         <Stat icon={<Layers3 />} label="C-Type Count" value={stats.counts.C} />
         <Stat icon={<Layers3 />} label="D-Type Count" value={stats.counts.D} />
-        <Stat icon={<UserMinus />} label="Vacated Residents" value={stats.vacated} />
+        <Stat icon={<UserMinus />} label="Vacant Quarters" value={stats.vacant} />
       </div>
-      <section className="panel"><PanelHead title="Quarters Snapshot" /><QuartersTable rows={rows.slice(0, 10)} specialByQuarter={new Map()} compact /></section>
+      <section className="panel"><PanelHead title="Quarters Snapshot" /><QuartersTable rows={rows.slice(0, 10)} compact /></section>
     </div>
   );
 }
 
-function QuartersResidents({ rows, allRows, specialByQuarter, filters, setFilters, pageState, setPageState, onAdd, onEdit, onSpecial, onDelete }) {
+function QuartersResidents({ rows, allRows, filters, setFilters, pageState, setPageState, onAdd, onEdit, onView, onDelete }) {
   const paged = paginate(rows, pageState);
   return (
     <div className="screen">
       <div className="command-strip"><PanelHead title="Quarters Residents" /><button className="primary" onClick={onAdd}><Plus size={16} /> Add New Resident</button></div>
-      <QuartersFilterPanel rows={allRows} specialByQuarter={specialByQuarter} filters={filters} setFilters={(next) => { setFilters(next); setPageState({ ...pageState, page: 1 }); }} />
-      <QuartersTable rows={paged.rows} specialByQuarter={specialByQuarter} onEdit={onEdit} onSpecial={onSpecial} onDelete={onDelete} />
+      <QuartersFilterPanel rows={allRows} filters={filters} setFilters={(next) => { setFilters(next); setPageState({ ...pageState, page: 1 }); }} />
+      <QuartersTable rows={paged.rows} onEdit={onEdit} onView={onView} onDelete={onDelete} />
       <Pagination total={rows.length} pageState={pageState} setPageState={setPageState} />
     </div>
   );
 }
 
-function QuartersTable({ rows, specialByQuarter, onEdit, onSpecial, onDelete, compact }) {
+function QuartersTable({ rows, onEdit, onView, onDelete, compact }) {
   return (
-    <div className="table-wrap"><table><thead><tr><th>Quarters No</th><th>Name</th><th>Designation</th><th>Department</th><th>Phone</th><th>IFHRMS</th><th>EB No</th><th>Type</th><th>Status</th>{!compact && <th>Actions</th>}</tr></thead><tbody>
+    <div className="table-wrap"><table><thead><tr><th>Quarters No</th><th>Name</th><th>Entry Date</th><th>Designation</th><th>Department</th><th>Phone</th><th>IFHRMS</th><th>Ref No & Date</th><th>Occupy Date</th><th>EB No</th><th>Type</th>{!compact && <th>Actions</th>}</tr></thead><tbody>
       {rows.map((resident) => {
-        const special = specialByQuarter.get?.(resident.quartersNo) || { residentStatus: resident.residentStatus || "Active" };
-        return <tr key={resident.quartersNo}><td>{resident.quartersNo}</td><td>{resident.name}</td><td>{resident.designation || "-"}</td><td>{resident.department || "-"}</td><td>{resident.phoneNo || "-"}</td><td>{resident.ifhrmsNo || "-"}</td><td>{resident.ebNo || "-"}</td><td>{resident.quartersType}</td><td><Badge tone={special.residentStatus === "Vacated" ? "danger" : special.residentStatus === "On Leave" ? "warn" : "ok"}>{special.residentStatus}</Badge></td>{!compact && <td><div className="row-actions">{onEdit && <button className="mini" onClick={() => onEdit(resident)}><Edit3 size={14} />Edit</button>}{onSpecial && <button className="mini" onClick={() => onSpecial(resident)}><FileText size={14} />Update Special Details</button>}{onDelete && <button className="mini danger" onClick={() => onDelete(resident.quartersNo)}><X size={14} />Delete</button>}</div></td>}</tr>;
+        return <tr key={resident.quartersNo}><td>{resident.quartersNo}</td><td>{resident.name}</td><td>{formatDate(resident.entryDate)}</td><td>{resident.designation || "-"}</td><td>{resident.department || "-"}</td><td>{resident.phoneNo || "-"}</td><td>{resident.ifhrmsNo || "-"}</td><td>{resident.refNoAndDate || "-"}</td><td>{formatDate(resident.occupyDate)}</td><td>{resident.ebNo || "-"}</td><td>{resident.quartersType}</td>{!compact && <td><div className="row-actions">{onView && <button className="mini" onClick={() => onView(resident)}><Eye size={14} />Details</button>}{onEdit && <button className="mini" onClick={() => onEdit(resident)}><Edit3 size={14} />Edit</button>}{onDelete && <button className="mini danger" onClick={() => onDelete(resident.quartersNo)}><X size={14} />Delete</button>}</div></td>}</tr>;
       })}
-      {!rows.length && <tr><td colSpan={compact ? 9 : 10}>No quarters records found.</td></tr>}
+      {!rows.length && <tr><td colSpan={compact ? 11 : 12}>No quarters records found.</td></tr>}
     </tbody></table></div>
   );
 }
 
-function SpecialDetails({ rows, specialByQuarter, onSpecial }) {
-  return <section className="screen"><PanelHead title="Special Details" /><QuartersTable rows={rows} specialByQuarter={specialByQuarter} onSpecial={onSpecial} /></section>;
+function QuartersDetails({ resident }) {
+  const fields = [
+    ["Quarters No", resident.quartersNo],
+    ["Name", resident.name],
+    ["Entry Date", formatDate(resident.entryDate)],
+    ["Designation", resident.designation],
+    ["Department", resident.department],
+    ["Phone Number", resident.phoneNo],
+    ["IFHRMS Number", resident.ifhrmsNo],
+    ["Ref No & Date", resident.refNoAndDate],
+    ["Occupy Date", formatDate(resident.occupyDate)],
+    ["EB Number", resident.ebNo],
+    ["Quarters Type", `${resident.quartersType}-Type`]
+  ];
+  return <div className="details-grid">{fields.map(([label, value]) => <div key={label}><p>{label}</p><strong>{value || "-"}</strong></div>)}</div>;
 }
 
 function HostelFilterPanel({ rows, rooms, filters, setFilters }) {
@@ -530,19 +507,17 @@ function HostelFilterPanel({ rows, rooms, filters, setFilters }) {
   );
 }
 
-function QuartersFilterPanel({ rows, specialByQuarter, filters, setFilters }) {
+function QuartersFilterPanel({ rows, filters, setFilters }) {
   const option = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
   const setMulti = (key, values) => setFilters({ ...filters, [key]: values });
   return (
     <section className="panel filter-panel">
-      <PanelHead title="Quarters Filters" action={<button className="secondary" onClick={() => setFilters({ quartersType: [], residentStatus: [], department: [], designation: [], occupancy: [], vehicleNumber: [], ifhrmsNo: [], sortBy: "quartersNo" })}><RotateCcw size={15} /> Reset</button>} />
+      <PanelHead title="Quarters Filters" action={<button className="secondary" onClick={() => setFilters({ quartersType: [], department: [], designation: [], occupancy: [], ifhrmsNo: [], sortBy: "quartersNo" })}><RotateCcw size={15} /> Reset</button>} />
       <div className="filter-grid">
         <MultiSelect label="Quarters Type" values={filters.quartersType} options={quartersTypes} onChange={(values) => setMulti("quartersType", values)} />
-        <MultiSelect label="Resident Status" values={filters.residentStatus} options={residentStatuses} onChange={(values) => setMulti("residentStatus", values)} />
         <MultiSelect label="Department" values={filters.department} options={option(rows.map((item) => item.department))} onChange={(values) => setMulti("department", values)} />
         <MultiSelect label="Designation" values={filters.designation} options={option(rows.map((item) => item.designation))} onChange={(values) => setMulti("designation", values)} />
         <MultiSelect label="Occupancy Status" values={filters.occupancy} options={["Occupied", "Vacant"]} onChange={(values) => setMulti("occupancy", values)} />
-        <MultiSelect label="Vehicle Number" values={filters.vehicleNumber} options={option(rows.map((item) => specialByQuarter.get(item.quartersNo)?.vehicleNumber))} onChange={(values) => setMulti("vehicleNumber", values)} />
         <MultiSelect label="IFHRMS Number" values={filters.ifhrmsNo} options={option(rows.map((item) => item.ifhrmsNo))} onChange={(values) => setMulti("ifhrmsNo", values)} />
         <label>Sort By<select value={filters.sortBy} onChange={(event) => setFilters({ ...filters, sortBy: event.target.value })}><option value="quartersNo">Quarters No</option><option value="name">Name</option><option value="department">Department</option><option value="designation">Designation</option></select></label>
       </div>
@@ -574,7 +549,7 @@ function Pagination({ total, pageState, setPageState }) {
   );
 }
 
-function LetterGenerator({ students, quartersResidents, specialByQuarter, onPreview, notify }) {
+function LetterGenerator({ students, quartersResidents, onPreview, notify }) {
   return (
     <div className="screen">
       <div className="command-strip"><div><p className="eyebrow">PDF Letter Workspace</p><h3>Vacating and appointment letters</h3></div></div>
@@ -585,7 +560,7 @@ function LetterGenerator({ students, quartersResidents, specialByQuarter, onPrev
         </section>
         <section className="panel">
           <PanelHead title="Appointment Letter Generator" />
-          <AppointmentLetterForm students={students} quartersResidents={quartersResidents} specialByQuarter={specialByQuarter} onPreview={onPreview} notify={notify} />
+          <AppointmentLetterForm students={students} quartersResidents={quartersResidents} onPreview={onPreview} notify={notify} />
         </section>
       </div>
     </div>
@@ -656,7 +631,7 @@ function LetterPreview({ letter }) {
   );
 }
 
-function ExcelExports({ students, allStudents, rooms, hostels, quartersRows, allQuarters, specialByQuarter, notify }) {
+function ExcelExports({ students, allStudents, rooms, hostels, quartersRows, allQuarters, notify }) {
   const hostelReports = [
     ["All Residents Report", hostelResidentRows(students)],
     ["Room Occupancy Report", roomRows(rooms)],
@@ -667,13 +642,13 @@ function ExcelExports({ students, allStudents, rooms, hostels, quartersRows, all
     ["Vacating Students Report", hostelResidentRows(allStudents.filter((student) => student.status === "vacated"))]
   ];
   const quartersReports = [
-    ["All Quarters Residents", quartersExportRows(quartersRows, specialByQuarter)],
-    ["A-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "A"), specialByQuarter)],
-    ["C-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "C"), specialByQuarter)],
-    ["D-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "D"), specialByQuarter)],
-    ["Vacant Quarters Report", quartersExportRows(quartersRows.filter((item) => (specialByQuarter.get(item.quartersNo)?.residentStatus || "Active") === "Vacated"), specialByQuarter)],
-    ["Occupied Quarters Report", quartersExportRows(quartersRows.filter((item) => (specialByQuarter.get(item.quartersNo)?.residentStatus || "Active") !== "Vacated"), specialByQuarter)],
-    ["Resident Status Report", quartersExportRows(allQuarters, specialByQuarter)]
+    ["All Quarters Residents", quartersExportRows(quartersRows)],
+    ["A-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "A"))],
+    ["C-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "C"))],
+    ["D-Type Report", quartersExportRows(quartersRows.filter((item) => item.quartersType === "D"))],
+    ["Vacant Quarters Report", quartersExportRows(quartersRows.filter((item) => !item.name))],
+    ["Occupied Quarters Report", quartersExportRows(quartersRows.filter((item) => item.name))],
+    ["Full Quarters Details", quartersExportRows(allQuarters)]
   ];
   const exportFile = (title, rows) => {
     downloadXlsx(`${slug(title)}.xlsx`, title, rows);
@@ -728,12 +703,7 @@ function QuarterForm({ resident, existing, onSubmit }) {
     if (ebNo && existing.some((item) => item.ebNo === ebNo && item.quartersNo !== resident?.quartersNo)) return setError("EB No must be unique.");
     onSubmit({ ...form, quartersNo: normalizedNo, ebNo }, resident?.quartersNo);
   }
-  return <form className="form-grid" onSubmit={submit}>{error && <p className="notice span-2">{error}</p>}{field("Quarters No", "quartersNo", form, setForm, true)}{field("Name", "name", form, setForm, true)}{field("Designation", "designation", form, setForm)}{field("Department", "department", form, setForm)}{field("Phone Number", "phoneNo", form, setForm)}{field("IFHRMS Number", "ifhrmsNo", form, setForm)}{field("Ref No & Date", "refNoAndDate", form, setForm)}{field("Occupy Date", "occupyDate", form, setForm, false, false, "date")}{field("EB Number", "ebNo", form, setForm)}{select("Quarters Type", "quartersType", quartersTypes, form, setForm)}<button className="primary span-2" type="submit">Save Quarters Resident</button></form>;
-}
-
-function SpecialForm({ resident, special, onSubmit }) {
-  const [form, setForm] = useState({ ...emptySpecial, ...(special || {}), quartersNo: resident.quartersNo });
-  return <form className="form-grid" onSubmit={(event) => { event.preventDefault(); onSubmit(form); }}><div className="notice span-2"><strong>{resident.quartersNo}</strong> • {resident.name} • {resident.designation || "-"} • {resident.department || "-"}</div><label className="span-2">Special Notes<textarea value={form.specialNotes} onChange={(e) => setForm({ ...form, specialNotes: e.target.value })} /></label><label className="span-2">Maintenance Issues<textarea value={form.maintenanceIssues} onChange={(e) => setForm({ ...form, maintenanceIssues: e.target.value })} /></label>{field("Family Members Count", "familyMembersCount", form, setForm, false, false, "number")}{field("Vehicle Number", "vehicleNumber", form, setForm)}{field("Aadhaar Number", "aadhaarNumber", form, setForm)}{field("Emergency Contact Name", "emergencyContactName", form, setForm)}{field("Emergency Contact Phone", "emergencyContactPhone", form, setForm)}{select("Resident Status", "residentStatus", residentStatuses, form, setForm)}<button className="primary span-2" type="submit">Update Special Details</button></form>;
+  return <form className="form-grid" onSubmit={submit}>{error && <p className="notice span-2">{error}</p>}{field("Quarters No", "quartersNo", form, setForm, true)}{field("Name", "name", form, setForm, true)}{field("Entry Date", "entryDate", form, setForm, false, false, "date")}{field("Designation", "designation", form, setForm)}{field("Department", "department", form, setForm)}{field("Phone Number", "phoneNo", form, setForm)}{field("IFHRMS Number", "ifhrmsNo", form, setForm)}{field("Ref No & Date", "refNoAndDate", form, setForm)}{field("Occupy Date", "occupyDate", form, setForm, false, false, "date")}{field("EB Number", "ebNo", form, setForm)}{select("Quarters Type", "quartersType", quartersTypes, form, setForm)}<button className="primary span-2" type="submit">Save Quarters Resident</button></form>;
 }
 
 function paginate(rows, { page, size }) {
@@ -904,12 +874,12 @@ function floorRows(rooms) {
   }, {}));
 }
 
-function quartersExportRows(rows, specialByQuarter) {
+function quartersExportRows(rows) {
   return rows.map((resident) => {
-    const special = specialByQuarter.get(resident.quartersNo) || emptySpecial;
     return {
       "Quarters No": resident.quartersNo,
       Name: resident.name,
+      "Entry Date": formatDate(resident.entryDate),
       Designation: resident.designation || "",
       Department: resident.department || "",
       Phone: resident.phoneNo || "",
@@ -917,9 +887,8 @@ function quartersExportRows(rows, specialByQuarter) {
       "EB No": resident.ebNo || "",
       Type: resident.quartersType,
       "Occupy Date": formatDate(resident.occupyDate),
-      Status: special.residentStatus || "Active",
-      "Vehicle Number": special.vehicleNumber || "",
-      "Family Members": special.familyMembersCount || 0
+      "Ref No & Date": resident.refNoAndDate || "",
+      "Occupancy Status": resident.name ? "Occupied" : "Vacant"
     };
   });
 }
